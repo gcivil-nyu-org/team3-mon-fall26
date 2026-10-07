@@ -7,7 +7,7 @@ NYC Active is a community platform for discovering NYC parks and recreational fa
 **[View Figma Designs ➔](https://www.figma.com/design/1rCSW2Rnvh0Ekj73DpcbAA/NYC-Active?node-id=0-1)**
 
 ## About The Project
-Information about parks and athletic amenities is often spread across different sites. Finding a suitable court, finding people to exercise with, and coordinating a meetup often require separate tools. NYC Active acts as a centralized Progressive Web App (PWA) that brings park discovery, recreational event organization, and community feedback together.
+Information about parks and athletic amenities is often spread across different sites. Finding a suitable court, finding people to exercise with, and coordinating a meetup often require separate tools. NYC Active acts as a centralized, mobile-responsive Django web application that brings park discovery, recreational event organization, and community feedback together.
 
 - **Target Personas:** Recreational Participants, Event Organizers, and Platform Administrators.
 - **Core Capabilities:** Map-based park discovery, event RSVP systems, in-app coordination threads, and community park reviews.
