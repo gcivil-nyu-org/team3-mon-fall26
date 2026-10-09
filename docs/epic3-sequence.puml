@@ -1,0 +1,45 @@
+@startuml
+skinparam maxMessageSize 150
+skinparam ParticipantBorderColor #4CAF50
+skinparam ActorBorderColor #4CAF50
+
+actor "Event Organizer" as Org
+participant "Web Browser\n(Client UI)" as Client
+participant "Django URLs/Router" as Router
+participant "Django View\n(EventCreateView)" as View
+participant "NYC Parks Data\n(Local DB/API)" as Parks
+database "PostgreSQL DB\n(Events Table)" as DB
+
+Org -> Client: Fill out Event Form (Park ID, Date, Capacity)
+Client -> Router: POST /events/create/
+activate Router
+Router -> View: Route to view logic
+deactivate Router
+
+activate View
+View -> View: Validate Session / Auth Token
+alt User is Unauthenticated
+    View --> Client: 403 Forbidden / Redirect to Login
+else User is Authenticated
+    View -> Parks: Validate Park ID exists
+    activate Parks
+    Parks --> View: Return Park Location Valid
+    deactivate Parks
+    
+    View -> View: Validate input data (Future date? Valid capacity?)
+    
+    alt Validation Fails
+        View --> Client: 400 Bad Request (Show Form Errors)
+    else Validation Passes
+        View -> DB: INSERT INTO Event (owner_id, park_id, capacity...)
+        activate DB
+        DB --> View: Event Created (Return new event_id)
+        deactivate DB
+        
+        View --> Client: 302 Redirect to /events/{event_id}/
+    end
+end
+deactivate View
+
+Client --> Org: Display Success & Event Details
+@enduml

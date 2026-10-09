@@ -1,0 +1,31 @@
+@startuml
+skinparam NodeBorderColor #4CAF50
+skinparam componentStyle uml2
+
+node "User Device (Mobile/Desktop)" <<Client>> {
+  [Web Browser] 
+}
+
+cloud "Amazon Web Services (AWS) Cloud" <<Hosting Environment>> {
+  
+  node "EC2 Instance / Elastic Beanstalk" <<Web Server>> {
+    component "Gunicorn (WSGI)" as WSGI
+    component "Django Application (Python)" as Django
+    
+    WSGI <--> Django
+  }
+  
+  database "Amazon RDS" <<Database Server>> {
+    [PostgreSQL Database]
+  }
+}
+
+cloud "NYC Open Data" <<External Service>> {
+  [Parks & Facilities APIs]
+}
+
+[Web Browser] <--> WSGI : HTTPS Request/Response
+Django <--> [PostgreSQL Database] : Django ORM (Read/Write)
+Django <--> [Parks & Facilities APIs] : JSON Data Ingestion
+
+@enduml
