@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% load static explore_tags %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/explore-filters.css' %}">{% endblock %}
 
 {% block title %}Upcoming events · NYC Active{% endblock %}
 
@@ -9,38 +11,7 @@
     <p class="discover-sub">Pickup games and park meetups across the five boroughs.</p>
   </header>
 
-  <form class="discover-filters" method="get" action="{% url 'event_list' %}" role="search" aria-label="Filter events" data-autosubmit>
-    <div class="discover-field">
-      <label for="filter-borough">Borough</label>
-      <select id="filter-borough" name="borough">
-        <option value="">All boroughs</option>
-        {% for value, label in borough_choices %}
-          <option value="{{ value }}"{% if value == filters.borough %} selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="discover-field">
-      <label for="filter-activity">Activity</label>
-      <input id="filter-activity" type="search" name="activity" value="{{ filters.activity }}" placeholder="e.g., basketball" maxlength="100">
-    </div>
-    <div class="discover-field">
-      <label for="filter-skill">Skill level</label>
-      <select id="filter-skill" name="skill">
-        <option value="">Any skill level</option>
-        {% for value, label in skill_choices %}
-          <option value="{{ value }}"{% if value == filters.skill %} selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <label class="discover-check">
-      <input type="checkbox" name="include_past" value="1"{% if filters.include_past %} checked{% endif %}>
-      Include past events
-    </label>
-    <div class="discover-actions">
-      <button type="submit" class="btn btn--primary">Apply</button>
-      {% if any_filter %}<a class="discover-clear" href="{% url 'event_list' %}">Clear</a>{% endif %}
-    </div>
-  </form>
+  {% include 'events/includes/explore_filters.html' %}
 
   {% if events %}
     <p class="discover-count">{{ paginator.count }} event{{ paginator.count|pluralize }}</p>
@@ -57,9 +28,10 @@
             <span class="discover-body">
               <span class="event-badges">
                 <span class="event-badge">{{ event.park.get_borough_display }}</span>
+                <span class="event-badge">{{ event.get_activity_display }}</span>
                 <span class="event-badge event-badge--outline">{{ event.get_skill_level_display }}</span>
               </span>
-              <span class="discover-name">{{ event.activity }}</span>
+              <span class="discover-name">{{ event.display_title }}</span>
               <span class="discover-meta">
                 <span>{{ event.date|date:"D, M j" }} · {{ event.time|time:"g:i A" }}</span>
                 <span>{{ event.park.name }}</span>
@@ -84,11 +56,11 @@
     {% if is_paginated %}
       <nav class="discover-pages" aria-label="Pages">
         {% if page_obj.has_previous %}
-          <a class="btn btn--ghost" href="{% querystring page=page_obj.previous_page_number %}">Previous</a>
+          <a class="btn btn--ghost" href="{% explore_url page=page_obj.previous_page_number %}">Previous</a>
         {% endif %}
         <span>Page {{ page_obj.number }} of {{ paginator.num_pages }}</span>
         {% if page_obj.has_next %}
-          <a class="btn btn--ghost" href="{% querystring page=page_obj.next_page_number %}">Next</a>
+          <a class="btn btn--ghost" href="{% explore_url page=page_obj.next_page_number %}">Next</a>
         {% endif %}
       </nav>
     {% endif %}
@@ -101,16 +73,4 @@
     </div>
   {% endif %}
 </section>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  // Re-run the search as soon as a dropdown or the checkbox changes.
-  // The activity text box still uses Enter or the Apply button.
-  document.querySelectorAll('form[data-autosubmit]').forEach((form) => {
-    form.querySelectorAll('select, input[type="checkbox"]').forEach((field) => {
-      field.addEventListener('change', () => form.requestSubmit());
-    });
-  });
-</script>
 {% endblock %}

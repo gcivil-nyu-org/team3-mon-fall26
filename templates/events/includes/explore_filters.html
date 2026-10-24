@@ -1,0 +1,29 @@
+{% load explore_tags %}
+<form class="explore-filters" method="get" action="{% url 'event_list' %}" role="search" aria-label="Explore filters">
+  <input type="hidden" name="view" value="{{ filters.view }}">
+  <input type="hidden" name="tab" value="{{ filters.tab }}">
+  {% if filters.park %}<input type="hidden" name="park" value="{{ filters.park }}">{% endif %}
+  <div class="explore-filter-row">
+    <div class="explore-search"><label for="{{ filter_form.q.id_for_label }}">Find your next game</label>{{ filter_form.q }}</div>
+    <div><label for="{{ filter_form.borough.id_for_label }}">Borough</label>{{ filter_form.borough }}</div>
+    <div><label for="{{ filter_form.scope.id_for_label }}">Show</label>{{ filter_form.scope }}</div>
+    <button class="btn btn--primary" type="submit">Search</button>
+  </div>
+  <div class="explore-filter-options">
+    <details class="explore-more-filters" {% if filter_form.errors %}open{% endif %}>
+      <summary>More filters <span aria-hidden="true">＋</span></summary>
+      <div class="explore-filter-grid">
+        {% for field in filter_form %}{% if field.name == 'zip' or field.name == 'sport' or field.name == 'facility' or field.name == 'when' or field.name == 'date_from' or field.name == 'date_to' or field.name == 'skill' %}
+        <div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>
+        {% endif %}{% endfor %}
+      </div>
+      <p class="explore-filter-help">Choose multiple sports, facilities or zip codes with Ctrl (Windows) or Command (Mac).</p>
+    </details>
+    <label class="explore-events-only">{{ filter_form.events_only }} Only parks with events</label>
+  </div>
+  {% if filter_form.non_field_errors %}<div role="alert">{{ filter_form.non_field_errors }}</div>{% endif %}
+  <div class="explore-pills" aria-label="Active filters">
+    {% for pill in filter_pills %}<a class="explore-pill" href="{{ pill.url }}" aria-label="Remove {{ pill.label }}">{{ pill.label }} <span aria-hidden="true">×</span></a>{% endfor %}
+    {% if filter_pills or filters.events_only %}<a class="explore-clear" href="{% explore_url q=None borough=None zip=None sport=None facility=None when=None date_from=None date_to=None skill=None park=None events_only=None %}">Clear filters</a>{% endif %}
+  </div>
+</form>

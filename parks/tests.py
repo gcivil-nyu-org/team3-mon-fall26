@@ -7,7 +7,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
 
-from .models import Borough, Facility, Park
+from .models import Borough, Facility, Park, comma_token_q
 
 SAMPLE_PARKS = [
     {
@@ -149,4 +149,40 @@ class SyncParksCommandTests(TestCase):
 
         with self.assertRaises(CommandError):
             call_command('sync_parks')
+
+
+class CommaTokenQTests(TestCase):
+    def setUp(self):
+        self.single = Park.objects.create(gispropnum='M1', name='Single', borough=Borough.MANHATTAN,
+                                          zipcode='10029')
+        self.pair = Park.objects.create(gispropnum='M2', name='Pair', borough=Borough.MANHATTAN,
+                                        zipcode='10029, 10128')
+        self.triple = Park.objects.create(gispropnum='M3', name='Triple', borough=Borough.MANHATTAN,
+                                          zipcode='10035, 10128, 10029')
+        self.blank = Park.objects.create(gispropnum='M4', name='Blank', borough=Borough.MANHATTAN)
+
+    def names(self, token):
+        return set(Park.objects.filter(comma_token_q('zipcode', token)).values_list('name', flat=True))
+
+    def test_matches_whole_zip_codes_in_any_position(self):
+        self.assertEqual(self.names('10029'), {'Single', 'Pair', 'Triple'})
+        self.assertEqual(self.names('10128'), {'Pair', 'Triple'})
+        self.assertEqual(self.names('10035'), {'Triple'})
+
+    def test_partial_zip_codes_do_not_match(self):
+        self.assertEqual(self.names('1002'), set())
+        self.assertEqual(self.names('0029'), set())
+
+    def test_matches_facility_sports_without_spaces_and_isolates_similar_keys(self):
+        Facility.objects.create(system_id='F1', park=self.single, sports='adult_softball,ll_softball')
+        Facility.objects.create(system_id='F2', park=self.pair, sports='nonregulation_soccer')
+
+        def parks_with(key):
+            return set(Facility.objects.filter(comma_token_q('sports', key)).values_list('park__name', flat=True))
+
+        self.assertEqual(parks_with('ll_softball'), {'Single'})
+        self.assertEqual(parks_with('adult_softball'), {'Single'})
+        self.assertEqual(parks_with('softball'), set())
+        self.assertEqual(parks_with('regulation_soccer'), set())
+        self.assertEqual(parks_with('nonregulation_soccer'), {'Pair'})
 

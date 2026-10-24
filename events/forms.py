@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from parks.models import Park
 
-from .models import CAPACITY_ERROR_MESSAGE, Event
+from .models import CAPACITY_ERROR_MESSAGE, Activity, Event
 
 NYC_TZ = ZoneInfo('America/New_York')
 MAX_CAPACITY = 10000
@@ -40,7 +40,6 @@ class EventCreateForm(forms.ModelForm):
             'description': 'Event description',
         }
         widgets = {
-            'activity': forms.TextInput(attrs={'placeholder': 'e.g., Pickup Basketball, 5v5 Soccer, Morning Run'}),
             'date': forms.DateInput(attrs={'type': 'date'}),
             'time': forms.TimeInput(attrs={'type': 'time'}),
             'description': forms.Textarea(
@@ -55,6 +54,7 @@ class EventCreateForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['park'].queryset = Park.objects.filter(is_retired=False).order_by('name', 'gispropnum')
         self.fields['park'].empty_label = 'Select an NYC park'
+        self.fields['activity'].choices = [('', 'Select a sport')] + list(Activity.choices)
 
     def clean_capacity(self):
         capacity = self.cleaned_data.get('capacity')

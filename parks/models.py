@@ -2,6 +2,20 @@ from decimal import Decimal
 from django.db import models
 
 
+def comma_token_q(field_name, token):
+    """Match `token` as a whole item of a comma-separated text field.
+
+    Works on SQLite and PostgreSQL. Handles both separators in our data:
+    Park.zipcode ("10029, 10128") and Facility.sports ("adult_softball,ll_softball").
+    Used by the zip code (#18) and facility (#19) filters.
+    """
+    query = models.Q(**{field_name: token}) | models.Q(**{f'{field_name}__startswith': f'{token},'})
+    for separator in (',', ', '):
+        query |= models.Q(**{f'{field_name}__endswith': f'{separator}{token}'})
+        query |= models.Q(**{f'{field_name}__contains': f'{separator}{token},'})
+    return query
+
+
 class Borough(models.TextChoices):
     MANHATTAN = 'M', 'Manhattan'
     BROOKLYN = 'B', 'Brooklyn'

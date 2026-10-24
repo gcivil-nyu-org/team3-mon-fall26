@@ -1,50 +1,25 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.views import redirect_to_login
 from django.http import JsonResponse
 from django.urls import reverse
 from django.views.decorators.http import require_GET
 from django.views.generic import CreateView, DetailView, ListView
 
-from parks.models import Borough
-
 from .forms import EventCreateForm
-from .models import Event, SkillLevel
+from .models import Event
+from .explore import (configure_filter_form, filter_params, filter_pills, matching_events, parse_filters)
 
 
-def filter_events(params):
-    """Apply discovery-feed filters from a GET QueryDict.
+def filter_events(params, user=None):
+    """Compatibility entry point for callers of #68's feed helper."""
+    _, filters = parse_filters(params)
+    return matching_events(filters, user).select_related('park', 'organizer'), filters
 
-    Upcoming scheduled events by default; ?include_past=1 also shows past ones.
-    Optional: ?borough=<code>, ?skill=<level>, ?activity=<text> (case-insensitive contains).
-    Returns (queryset, cleaned_filters).
-    """
-    include_past = params.get('include_past') == '1'
-    events = Event.objects.scheduled() if include_past else Event.objects.upcoming()
-    events = events.select_related('park', 'organizer')
 
-    borough = params.get('borough', '').strip()
-    if borough in Borough.values:
-        events = events.filter(park__borough=borough)
-    else:
-        borough = ''
-
-    skill = params.get('skill', '').strip()
-    if skill in SkillLevel.values:
-        events = events.filter(skill_level=skill)
-    else:
-        skill = ''
-
-    activity = params.get('activity', '').strip()[:100]
-    if activity:
-        events = events.filter(activity__icontains=activity)
-
-    filters = {
-        'borough': borough,
-        'skill': skill,
-        'activity': activity,
-        'include_past': include_past,
-    }
-    return events, filters
+def personal_scope_redirect(request, filters):
+    if filters['scope'] != 'all' and not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path())
 
 
 class EventListView(ListView):
@@ -55,25 +30,31 @@ class EventListView(ListView):
     context_object_name = 'events'
     paginate_by = 20
 
+    def dispatch(self, request, *args, **kwargs):
+        self.filter_form, self.filters = parse_filters(request.GET)
+        redirect = personal_scope_redirect(request, self.filters)
+        return redirect or super().dispatch(request, *args, **kwargs)
+
     def get_queryset(self):
-        events, self.filters = filter_events(self.request.GET)
-        return events
+        return matching_events(self.filters, self.request.user).select_related('park', 'organizer')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context.update(
-            filters=self.filters,
-            any_filter=any(self.filters.values()),
-            borough_choices=Borough.choices,
-            skill_choices=SkillLevel.choices,
-        )
+        configure_filter_form(self.filter_form, self.filters)
+        pills = filter_pills(self.filters)
+        context.update(filters=self.filters, filter_form=self.filter_form,
+                       filter_pills=pills, any_filter=bool(pills or self.filters['events_only']),
+                       explore_params=filter_params(self.filters))
         return context
 
 
 def serialize_event(event):
     return {
         'id': event.pk,
+        'title': event.display_title,
         'activity': event.activity,
+        'activity_label': event.get_activity_display(),
+        'meeting_spot': event.meeting_spot,
         'skill_level': event.skill_level,
         'skill_level_label': event.get_skill_level_display(),
         'date': event.date.isoformat(),
@@ -95,7 +76,11 @@ def serialize_event(event):
 @require_GET
 def upcoming_events_api(request):
     """JSON version of the discovery feed, with the same filters."""
-    events, _ = filter_events(request.GET)
+    _, filters = parse_filters(request.GET)
+    redirect = personal_scope_redirect(request, filters)
+    if redirect:
+        return redirect
+    events, _ = filter_events(request.GET, request.user)
     results = [serialize_event(event) for event in events[:200]]
     return JsonResponse({'count': len(results), 'results': results})
 

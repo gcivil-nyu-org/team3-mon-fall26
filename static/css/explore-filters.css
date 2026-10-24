@@ -1,0 +1,21 @@
+.explore-filters { border:1px solid var(--border); border-radius:14px; background:#fff; padding:20px; box-shadow:0 2px 5px #10182804; }
+.explore-filter-row { display:grid; grid-template-columns:2fr 1fr 1fr auto; gap:14px; align-items:end; }
+.explore-filters label { display:block; font-size:.75rem; font-weight:600; color:var(--ink-2); margin-bottom:6px; }
+.explore-filters input:not([type=checkbox]), .explore-filters select { width:100%; min-height:42px; padding:9px 11px; font:inherit; font-size:.875rem; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--ink); }
+.explore-filters input:focus-visible,.explore-filters select:focus-visible { outline:2px solid var(--green-600); outline-offset:2px; }
+.explore-filter-options { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-top:16px; padding-top:14px; border-top:1px solid #eef0ee; }
+.explore-more-filters { flex:1; }
+.explore-more-filters summary { cursor:pointer; font-size:.8125rem; font-weight:600; color:var(--green-700); width:fit-content; }
+.explore-filter-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; padding-top:18px; }
+.explore-filter-grid select[multiple] { min-height:110px; }
+.explore-filter-help { font-size:.75rem; color:var(--muted); }
+.explore-filters .explore-events-only { display:flex; align-items:center; gap:8px; white-space:nowrap; padding-top:1px; margin:0; }
+.explore-events-only input { accent-color:var(--green-700); }
+.explore-pills { display:flex; gap:8px; flex-wrap:wrap; }
+.explore-pills:not(:empty) { margin-top:16px; }
+.explore-pill { border-radius:20px; background:var(--green-50); color:var(--green-900); padding:5px 10px; font-size:.75rem; text-decoration:none; }
+.explore-pill span { margin-left:6px; }
+.explore-clear { font-size:.75rem; align-self:center; margin-left:6px; }
+
+@media(max-width:900px) { .explore-filter-row { grid-template-columns:2fr 1fr; } }
+@media(max-width:600px) { .explore-filters { padding:14px; } .explore-filter-row { grid-template-columns:1fr 1fr; gap:12px; } .explore-search { grid-column:1/-1; } .explore-filter-row>.btn { grid-column:1/-1; } .explore-filter-grid { grid-template-columns:1fr; } .explore-filter-options { display:block; } .explore-events-only { margin-top:14px !important; } }

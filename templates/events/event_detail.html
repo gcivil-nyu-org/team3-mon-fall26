@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ event.activity }} at {{ event.park.name }} · NYC Active{% endblock %}
+{% block title %}{{ event.display_title }} at {{ event.park.name }} · NYC Active{% endblock %}
 
 {% block content %}
 <a class="event-back-link" href="{% url 'event_list' %}">&larr; All upcoming events</a>
@@ -8,9 +8,10 @@
   <header class="event-card-header">
     <div class="event-badges">
       <span class="event-badge event-badge--status">{{ event.get_status_display }}</span>
+      <span class="event-badge">{{ event.get_activity_display }}</span>
       <span class="event-badge">{{ event.get_skill_level_display }}</span>
     </div>
-    <h1 class="event-card-title">{{ event.activity }}</h1>
+    <h1 class="event-card-title">{{ event.display_title }}</h1>
     <p class="event-card-subtitle">
       Hosted by <a href="{% url 'public_profile' username=event.organizer.username %}"><strong>@{{ event.organizer.profile.display_username|default:event.organizer.username }}</strong></a>
     </p>
