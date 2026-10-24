@@ -49,6 +49,24 @@ else:
         "CONN_MAX_AGE": 60,
         "OPTIONS": {"sslmode": "require", "connect_timeout": 5},
     }}
+    # Instance disks are replaced on deploy, so uploads such as profile photos live
+    # in a private S3 bucket. Pages link to short-lived presigned URLs.
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": required_env("DJANGO_MEDIA_BUCKET"),
+            "region_name": required_env("DJANGO_MEDIA_REGION"),
+            # The instance role can only read, write and delete keys under this prefix.
+            "location": "media",
+            "querystring_auth": True,
+            "querystring_expire": 3600,
+            "signature_version": "s3v4",
+            "addressing_style": "virtual",
+            # Checking for an existing name needs s3:ListBucket, which the role lacks.
+            # Upload names are random UUIDs, so overwriting never replaces another file.
+            "file_overwrite": True,
+        },
+    }
 
 # The TLS proxy must replace this header instead of trusting client input.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

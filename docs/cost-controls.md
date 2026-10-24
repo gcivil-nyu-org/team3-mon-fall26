@@ -30,6 +30,15 @@ after seven days; one latest dump remains. Size and request charges grow with
 data/traffic, so this is not an unlimited free database. Review disk space and
 backup timestamps as the team adds data.
 
+Uploaded media such as profile photos use the project-tagged
+`nyc-active-media-287872994760-us-east-1` bucket. There is no always-on resource:
+only S3 Standard storage ($0.023/GB-month), PUT requests ($0.005 per 1,000) and
+GET requests ($0.0004 per 1,000), plus transfer beyond AWS's monthly free
+allowance. Photos are 512px JPEGs, so a thousand profiles take well under 100 MB.
+Pages use presigned URLs rather than CloudFront, so the distribution keeps its
+single Beanstalk origin and the guard's origin check stays valid. A lifecycle rule
+aborts incomplete uploads and removes noncurrent versions after a day.
+
 Automatic develop deployment uses standard GitHub-hosted Linux runners for this
 public repository. It adds no AWS build service or server. Source bundles use a
 dedicated prefix in the existing S3 bucket; storage/request usage can still accrue.
@@ -86,8 +95,10 @@ and historical tag backfill can take time. A zero or missing calculated spend
 while data is preparing does not mean the environment used no resources.
 
 Stopping compute also stops the colocated PostgreSQL and its backup timer.
-Existing encrypted S3 backups remain available and their storage can still accrue
-charges. The guard does not delete data or backups. Stopping compute does not
+Existing encrypted S3 backups and uploaded photos remain available and their
+storage can still accrue charges. With the instance stopped, no new photo links
+are signed and issued links expire within an hour. The guard does not delete
+data, backups or photos. Stopping compute does not
 remove the EBS disk or Elastic IP; these can continue
 to consume roughly $4.29/month at the above baseline. Shared S3 source storage
 is not included in the project-tag budget because its bucket also serves the

@@ -5,8 +5,10 @@ import subprocess
 import sys
 import tempfile
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 from django.conf import settings
+from django.core.files.storage import FileSystemStorage, storages
 from django.db import OperationalError
 from django.test import SimpleTestCase, TestCase, override_settings
 
@@ -67,10 +69,12 @@ class ProductionSettingsTests(SimpleTestCase):
             "DB_NAME": "nyc_active",
             "DB_USER": "application_user",
             "DB_PASSWORD": "test-only-not-a-real-password",
+            "DJANGO_MEDIA_BUCKET": "nyc-active-media-test",
+            "DJANGO_MEDIA_REGION": "us-east-1",
         }
 
-    def load_production(self, environment):
-        code = (
+    def load_production(self, environment, code=None):
+        code = code or (
             "from config.wsgi import application; "
             "from django.conf import settings; import json; "
             "print(json.dumps({'debug':settings.DEBUG, "
@@ -99,6 +103,57 @@ class ProductionSettingsTests(SimpleTestCase):
         result = self.load_production(environment)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Set DB_HOST", result.stderr)
+
+    def test_production_requires_the_media_bucket_and_region(self):
+        for name in ("DJANGO_MEDIA_BUCKET", "DJANGO_MEDIA_REGION"):
+            with self.subTest(name=name):
+                environment = self.production_environment()
+                environment.pop(name)
+                result = self.load_production(environment)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"Set {name}", result.stderr)
+
+    def test_uploads_use_the_private_media_bucket_through_presigned_urls(self):
+        environment = self.production_environment()
+        # Placeholder credentials keep the check offline: signing a URL never calls AWS.
+        environment.update(
+            AWS_ACCESS_KEY_ID="test-only-access-key",
+            AWS_SECRET_ACCESS_KEY="test-only-secret-key",
+            AWS_CONFIG_FILE=os.devnull,
+            AWS_SHARED_CREDENTIALS_FILE=os.devnull,
+            AWS_EC2_METADATA_DISABLED="true",
+        )
+        for name in ("AWS_PROFILE", "AWS_SESSION_TOKEN"):
+            environment.pop(name, None)
+        code = (
+            "from config.wsgi import application; "
+            "from django.core.files.storage import storages; import json; "
+            "storage=storages['default']; "
+            "print(json.dumps({'backend':f'{type(storage).__module__}.{type(storage).__name__}', "
+            "'bucket':storage.bucket_name, 'region':storage.region_name, "
+            "'location':storage.location, 'overwrite':storage.file_overwrite, "
+            "'url':storage.url('avatars/test.jpg')}))"
+        )
+        result = self.load_production(environment, code)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        storage = json.loads(result.stdout)
+        self.assertEqual(storage["backend"], "storages.backends.s3.S3Storage")
+        self.assertEqual((storage["bucket"], storage["region"]), ("nyc-active-media-test", "us-east-1"))
+        # Avoids the existence check, which would need s3:ListBucket.
+        self.assertTrue(storage["overwrite"])
+
+        url = urlsplit(storage["url"])
+        query = parse_qs(url.query)
+        self.assertEqual(url.scheme, "https")
+        self.assertTrue(url.hostname.startswith("nyc-active-media-test.s3."), url.hostname)
+        self.assertEqual(url.path, "/media/avatars/test.jpg")
+        self.assertEqual(query["X-Amz-Algorithm"], ["AWS4-HMAC-SHA256"])
+        self.assertEqual(query["X-Amz-Expires"], ["3600"])
+        self.assertIn("X-Amz-Signature", query)
+
+        # The instance role's grant must cover the prefix the storage writes to.
+        policy = json.loads((settings.BASE_DIR / "infra/media-storage-policy.json").read_text())
+        self.assertTrue(policy["Statement"][0]["Resource"].endswith(f"/{storage['location']}/*"))
 
     def test_production_rejects_unrestricted_hosts(self):
         environment = self.production_environment()
@@ -136,7 +191,8 @@ class ProductionSettingsTests(SimpleTestCase):
             DJANGO_DATABASE_PATH=os.path.join(tempfile.gettempdir(), "nyc-active-check.sqlite3"),
             DJANGO_HTTPS="False",
         )
-        for name in ("DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD"):
+        for name in ("DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD",
+                     "DJANGO_MEDIA_BUCKET", "DJANGO_MEDIA_REGION"):
             environment.pop(name)
         collected = subprocess.run(
             [sys.executable, "manage.py", "collectstatic", "--noinput", "--verbosity", "0"],
@@ -179,3 +235,8 @@ class ProductionSettingsTests(SimpleTestCase):
         result = self.load_production(environment)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Enable HTTPS", result.stderr)
+
+
+class LocalMediaStorageTests(SimpleTestCase):
+    def test_development_settings_keep_uploads_on_local_disk(self):
+        self.assertIsInstance(storages["default"], FileSystemStorage)

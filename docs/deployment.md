@@ -12,6 +12,7 @@ It does not introduce a second Django project or a separate core app.
 - One `t3.micro` instance, 8 GiB gp3 root disk
 - PostgreSQL 16 on the same instance, accessible only through loopback with TLS
 - Private encrypted S3 database backups, hourly with seven-day archive retention
+- Private encrypted S3 bucket for uploaded media such as profile photos
 - No load balancer, RDS instance, or NAT gateway
 
 The running instance uses standard CPU credits to avoid surplus CPU charges.
@@ -34,6 +35,8 @@ Configure these through AWS environment properties, never committed files:
 | `DB_NAME` / `DB_USER` | `nyc_active` |
 | `DB_PASSWORD` | Private random URL-safe value, at least 40 characters |
 | `DJANGO_DB_BACKUP_BUCKET` | `nyc-active-db-backups-287872994760-us-east-1` |
+| `DJANGO_MEDIA_BUCKET` | `nyc-active-media-287872994760-us-east-1` |
+| `DJANGO_MEDIA_REGION` | `us-east-1` |
 | `DJANGO_HTTPS` | `True` |
 | `DJANGO_TLS_DOMAIN` | Exact existing Beanstalk hostname |
 
@@ -99,6 +102,103 @@ the unprivileged `webapp` user (preserving any records with
 [NYC Parks & Athletic Facilities data seeding](parks-data-seeding.md) for full
 details and CLI options.
 
+## Uploaded media
+
+Instance disks do not survive deploys or instance replacement, and Django does
+not serve `MEDIA_ROOT` with `DEBUG` off. Production therefore stores uploads
+such as profile photos in the private `nyc-active-media-287872994760-us-east-1`
+bucket through `django-storages` (`STORAGES["default"]` in `config/production.py`).
+Startup fails if `DJANGO_MEDIA_BUCKET` or `DJANGO_MEDIA_REGION` is missing.
+Restricted check mode has no upload routes and does not need them. Local
+development keeps `FileSystemStorage`.
+
+Objects live under the `media/` prefix. Pages link to presigned URLs that expire
+after one hour; the bucket never serves anonymous requests. Signing happens on
+the instance without an AWS call. Links signed with the instance role's
+temporary credentials can stop working sooner if those credentials rotate, so
+they are for rendering pages, not for sharing.
+
+Presigned URLs were chosen over serving `/media/` through CloudFront because:
+
+- Adding an S3 origin to distribution `E1YOQE0SL33H2U` would break the cost
+  controls. `infra/budget_stop.py` and `infra/deploy_ci.py` refuse to act unless
+  the Beanstalk hostname is the distribution's only origin.
+- CloudFront would also need an origin access control, a bucket policy for the
+  CloudFront service and a new cache behavior. Presigned URLs need none of these.
+- Deleting an object revokes access at once. A CloudFront copy of a removed
+  photo would stay reachable until its cache entry expired.
+- At team-test traffic, S3 GET requests and transfer cost fractions of a cent.
+  CloudFront would only be cheaper at far higher traffic.
+
+Because every page render signs a new URL, browsers download the photo again on
+each view. Profile photos are 512px JPEGs, so this is acceptable at this scale.
+
+The instance role gets `infra/media-storage-policy.json`: `s3:GetObject`,
+`s3:PutObject` and `s3:DeleteObject` on `media/*` only, with no bucket listing.
+The storage keeps `file_overwrite` on so saving never runs an existence check,
+which would need `s3:ListBucket`. Upload names are random UUIDs, so this never
+replaces another user's file. Delete access lets the app remove replaced or
+removed photos instead of leaving them in the bucket.
+
+The bucket blocks all public access, enforces bucket-owner object ownership
+(no ACLs), encrypts with SSE-S3 (AES256) and denies non-HTTPS requests
+(`infra/media-bucket-policy.json`). Versioning stays off so deleted photos are
+really gone. `infra/media-bucket-lifecycle.json` aborts incomplete uploads after
+a day and expires noncurrent versions after a day if versioning is ever enabled.
+It never expires current photos. The bucket carries `Project=NYCActive`.
+
+### One-time setup
+
+An account owner runs these steps **before** merging the settings change into
+`develop`. Automatic deployment would otherwise start an app that fails on the
+missing variables, and the release script would roll it back. The variables are
+harmless to set early because older releases ignore them. Run from the repository root:
+
+```bash
+BUCKET=nyc-active-media-287872994760-us-east-1
+aws s3api create-bucket --region us-east-1 --bucket "$BUCKET" --object-ownership BucketOwnerEnforced
+aws s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration \
+  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+aws s3api put-bucket-encryption --bucket "$BUCKET" --server-side-encryption-configuration \
+  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+aws s3api put-bucket-policy --bucket "$BUCKET" --policy file://infra/media-bucket-policy.json
+aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" \
+  --lifecycle-configuration file://infra/media-bucket-lifecycle.json
+aws s3api put-bucket-tagging --bucket "$BUCKET" --tagging 'TagSet=[{Key=Project,Value=NYCActive}]'
+```
+
+Find the environment's instance role and attach the inline policy:
+
+```bash
+PROFILE=$(aws elasticbeanstalk describe-configuration-settings --region us-east-1 \
+  --application-name nyc-active --environment-name nyc-active-demo-287872994760 \
+  --query "ConfigurationSettings[0].OptionSettings[?OptionName=='IamInstanceProfile'].Value" --output text)
+ROLE=$(aws iam get-instance-profile --instance-profile-name "${PROFILE##*/}" \
+  --query 'InstanceProfile.Roles[0].RoleName' --output text)
+aws iam put-role-policy --role-name "$ROLE" --policy-name nyc-active-media-storage \
+  --policy-document file://infra/media-storage-policy.json
+```
+
+If another environment, such as the personal assignment, uses the same instance
+profile, its instances would gain the same access. Give the team environment a
+dedicated profile first in that case.
+
+Then set the environment properties. This is a configuration deployment of the
+current release:
+
+```bash
+aws elasticbeanstalk update-environment --region us-east-1 \
+  --environment-name nyc-active-demo-287872994760 --option-settings \
+  Namespace=aws:elasticbeanstalk:application:environment,OptionName=DJANGO_MEDIA_BUCKET,Value=nyc-active-media-287872994760-us-east-1 \
+  Namespace=aws:elasticbeanstalk:application:environment,OptionName=DJANGO_MEDIA_REGION,Value=us-east-1
+```
+
+After the release, upload, replace and remove a photo with a disposable account.
+The image URL should point at the bucket and carry `X-Amz-Signature`. The same
+URL without its query string should return 403, and
+`aws s3 ls s3://nyc-active-media-287872994760-us-east-1/media/avatars/` should
+list only the current photo.
+
 ## Manual release
 
 1. Test the intended commit: `python manage.py test` and `python manage.py check`.
@@ -113,7 +213,8 @@ details and CLI options.
 5. Wait for Ready/Green and confirm `/`, `/health/`, `/ready/` return 200 over HTTPS.
    Confirm the landing page and its hashed CSS, JS and images load. Confirm
    `/login/` and `/register/` render and test sign-up/login/logout with a disposable
-   account. In optional check mode, confirm account/admin routes return 404.
+   account. Upload a profile photo and confirm it loads through a presigned S3 URL.
+   In optional check mode, confirm account/admin routes return 404.
 
 `Procfile` starts Gunicorn on port 8000. Platform predeploy hooks run migrations;
 `.ebextensions/django.config` collects static files, served by WhiteNoise. Health middleware
