@@ -1,5 +1,8 @@
 # NYC Active: Park Explorer & Recreation Meetup
 
+[![Build Status](https://app.travis-ci.com/gcivil-nyu-org/team3-mon-fall26.svg?branch=develop)](https://app.travis-ci.com/gcivil-nyu-org/team3-mon-fall26)
+[![Coverage Status](https://coveralls.io/repos/github/gcivil-nyu-org/team3-mon-fall26/badge.svg?branch=develop)](https://coveralls.io/github/gcivil-nyu-org/team3-mon-fall26?branch=develop)
+
 NYC Active is a community platform for discovering NYC parks and recreational facilities, organizing local sports meetups, and sharing useful information about recreational spaces.
 
 **[Read the Project Wiki (Product Backlog & Architecture) ➔](https://github.com/gcivil-nyu-org/team3-mon-fall26/wiki)**  
