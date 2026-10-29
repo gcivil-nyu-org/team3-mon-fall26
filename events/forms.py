@@ -75,4 +75,3 @@ class EventCreateForm(forms.ModelForm):
             if scheduled <= now:
                 self.add_error('date', 'Event date and time must be in the future.')
         return cleaned_data
-

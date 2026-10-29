@@ -11,3 +11,8 @@ media/
 !.env.example
 *.sqlite3-*
 .DS_Store
+
+# Coverage output (Travis/Coveralls)
+.coverage
+.coverage.*
+htmlcov/

@@ -1,0 +1,17 @@
+[flake8]
+# The team's code is written to ~120 columns; 79 would flag over 1,000 existing lines.
+max-line-length = 120
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    */migrations/*,
+    static,
+    staticfiles,
+    media,
+    node_modules
+# Lines inside generated PostgreSQL config text can't be wrapped without changing the file.
+per-file-ignores =
+    .platform/scripts/local_database.py: E501

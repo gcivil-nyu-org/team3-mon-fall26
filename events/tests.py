@@ -175,7 +175,6 @@ class EventCreationAndCapacityTests(TestCase):
         self.assertEqual(Event.objects.count(), 0)
 
 
-
 class EventDiscoveryFeedTests(TestCase):
     """Upcoming event discovery feed and details (#25)."""
 

@@ -1,5 +1,8 @@
 # NYC Active
 
+[![Build Status](https://app.travis-ci.com/gcivil-nyu-org/team3-mon-fall26.svg?branch=develop)](https://app.travis-ci.com/gcivil-nyu-org/team3-mon-fall26)
+[![Coverage Status](https://coveralls.io/repos/github/gcivil-nyu-org/team3-mon-fall26/badge.svg?branch=develop)](https://coveralls.io/github/gcivil-nyu-org/team3-mon-fall26?branch=develop)
+
 The team's Django project. Feature branches should start from `develop` and
 return through a pull request. `main` is the stable branch.
 
@@ -50,3 +53,16 @@ The team has a US$15 monthly usage budget before promotional credits. An hourly
 guard stops only the existing team environment after AWS reports that threshold.
 Billing/tag data is delayed, so this is not a precise spending cap; disk and IP
 costs can continue after stopping. See [cost controls](docs/cost-controls.md).
+
+## Continuous integration
+
+Travis CI (`.travis.yml`) runs on pushes to `develop`/`main` and on pull requests into them:
+flake8 (`.flake8`, 120-column lines), Django and infra tests under coverage (`.coveragerc`),
+the Node JS tests and deploy-hook syntax checks, then reports coverage to Coveralls.
+CI-only tools are in `requirements-dev.txt`. Run the same checks locally:
+
+```sh
+python -m pip install -r requirements-dev.txt
+flake8 .
+coverage run manage.py test && coverage report
+```

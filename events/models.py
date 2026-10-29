@@ -203,4 +203,3 @@ class RSVP(models.Model):
 
     def __str__(self):
         return f'{self.user} for {self.event} ({self.status})'
-

@@ -93,7 +93,7 @@ def restore_if_new():
     # List failure is fatal. An inaccessible backup must never be mistaken for
     # an empty bucket, which could silently replace existing users with a blank DB.
     objects = json.loads(s3("list-objects-v2", "--bucket", BUCKET, "--prefix",
-                          "postgres/latest.dump", capture_output=True, text=True).stdout)
+                            "postgres/latest.dump", capture_output=True, text=True).stdout)
     if any(item["Key"] == "postgres/latest.dump" for item in objects.get("Contents", [])):
         with tempfile.TemporaryDirectory(prefix="nyc-active-restore-") as directory:
             archive = Path(directory) / "database.dump"

@@ -17,4 +17,3 @@ class RSVPAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     search_fields = ('event__title', 'user__username')
     raw_id_fields = ('event', 'user')
-

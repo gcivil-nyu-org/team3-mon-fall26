@@ -17,7 +17,8 @@ class AutomaticDeploymentTests(unittest.TestCase):
         }
         self.clients["budgets"].describe_budget.return_value = {"Budget": self.budget}
         self.distribution = {"Enabled": True, "Origins": {"Items": [{"DomainName": deploy.ORIGIN}]}}
-        self.clients["cloudfront"].get_distribution.return_value = {"Distribution": {"DistributionConfig": self.distribution}}
+        self.clients["cloudfront"].get_distribution.return_value = {
+            "Distribution": {"DistributionConfig": self.distribution}}
         self.environment = {"ApplicationName": deploy.APPLICATION, "EnvironmentId": deploy.ENVIRONMENT_ID,
                             "CNAME": deploy.ORIGIN, "Status": "Ready", "Health": "Green", "VersionLabel": "previous"}
         self.clients["elasticbeanstalk"].describe_environments.return_value = {"Environments": [self.environment]}
@@ -121,7 +122,7 @@ class AutomaticDeploymentTests(unittest.TestCase):
         for repository, ref, event in [
             ("someone/fork", "refs/heads/develop", "push"),
             (deploy.REPOSITORY, "refs/heads/main", "push"),
-            (deploy.REPOSITORY, "refs/heads/develop", "pull_request")]:
+                (deploy.REPOSITORY, "refs/heads/develop", "pull_request")]:
             with self.subTest(repository=repository, ref=ref, event=event), patch.dict(os.environ, {
                     "GITHUB_REPOSITORY": repository, "GITHUB_REF": ref, "GITHUB_EVENT_NAME": event}):
                 with self.assertRaisesRegex(RuntimeError, "central develop"):

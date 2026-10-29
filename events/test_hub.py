@@ -20,10 +20,10 @@ class EventsHubTests(TestCase):
     def setUpTestData(cls):
         cls.user = get_user_model().objects.create_user('hub-host', 'hub@example.test', 'Hub-test-password-42')
         cls.park = Park.objects.create(gispropnum='HUB1', name='Hub Park', borough='B',
-            zipcode='11211, 11222', latitude='40.72', longitude='-73.95')
+                                       zipcode='11211, 11222', latitude='40.72', longitude='-73.95')
         cls.event = Event.objects.create(organizer=cls.user, park=cls.park, title='Hub game',
-            activity='basketball', date=timezone.localdate()+datetime.timedelta(days=7),
-            time=datetime.time(16), description='Friendly game')
+                                         activity='basketball', date=timezone.localdate()+datetime.timedelta(days=7),
+                                         time=datetime.time(16), description='Friendly game')
 
     def hub_link(self, response, label):
         html = response.content.decode()
@@ -64,8 +64,8 @@ class EventsHubTests(TestCase):
         self.client.get('/events/?view=list&tab=parks&zip=11211&zip=11222')
         redirect = self.client.get('/events/create/')
         self.assertRedirects(redirect, '/login/?next=/events/create/')
-        login = self.client.post('/login/?next=/events/create/',
-            {'username': 'hub@example.test', 'password': 'Hub-test-password-42', 'next': '/events/create/'})
+        login = self.client.post('/login/?next=/events/create/', {
+            'username': 'hub@example.test', 'password': 'Hub-test-password-42', 'next': '/events/create/'})
         self.assertRedirects(login, '/events/create/')
         create = self.client.get('/events/create/')
         restored = parse_qs(urlsplit(self.hub_link(create, 'Explore Events')).query)
@@ -77,8 +77,9 @@ class EventsHubTests(TestCase):
         self.client.force_login(self.user)
         for index in range(21):
             Event.objects.create(organizer=self.user, park=self.park, title=f'Other {index}',
-                activity='basketball', date=self.event.date, time=self.event.time, description='Game')
-        response = self.client.get(f'/events/?view=list&tab=events&zip=11211&zip=11222&sport=basketball&park={self.park.pk}&panel=1&page=2')
+                                 activity='basketball', date=self.event.date, time=self.event.time, description='Game')
+        response = self.client.get('/events/?view=list&tab=events&zip=11211&zip=11222&sport=basketball'
+                                   f'&park={self.park.pk}&panel=1&page=2')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['selected_park'], self.park)
         self.assertContains(response, 'aria-label="Park quick view" open')
@@ -99,7 +100,8 @@ class EventsHubTests(TestCase):
         self.assertNotIn('park', parse_qs(self.client.session[EXPLORE_SESSION_KEY]))
 
     def test_invalid_and_unrelated_parameters_are_not_remembered(self):
-        self.client.get('/events/?view=invalid&tab=nope&zip=bad&zip=11211&next=https://evil.example/&csrfmiddlewaretoken=private&park=-1')
+        self.client.get('/events/?view=invalid&tab=nope&zip=bad&zip=11211&next=https://evil.example/'
+                        '&csrfmiddlewaretoken=private&park=-1')
         params = parse_qs(self.client.session[EXPLORE_SESSION_KEY])
         self.assertEqual(params, {'view': ['map'], 'tab': ['events'], 'scope': ['all'], 'zip': ['11211']})
         detail = self.client.get(self.event.get_absolute_url())

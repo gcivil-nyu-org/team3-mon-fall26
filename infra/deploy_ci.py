@@ -140,13 +140,15 @@ def main():
     key = "nyc-active/gha/" + version + ".zip"
     session.client("s3").put_object(Bucket=BUCKET, Key=key, Body=archive.read_bytes(), ServerSideEncryption="AES256")
     eb = clients["elasticbeanstalk"]
-    existing = eb.describe_application_versions(ApplicationName=APPLICATION, VersionLabels=[version])["ApplicationVersions"]
+    existing = eb.describe_application_versions(
+        ApplicationName=APPLICATION, VersionLabels=[version])["ApplicationVersions"]
     if not existing:
         eb.create_application_version(ApplicationName=APPLICATION, VersionLabel=version,
                                       Description="develop " + sha, Process=True,
                                       SourceBundle={"S3Bucket": BUCKET, "S3Key": key})
     for _ in range(30):
-        state = eb.describe_application_versions(ApplicationName=APPLICATION, VersionLabels=[version])["ApplicationVersions"][0]["Status"]
+        state = eb.describe_application_versions(
+            ApplicationName=APPLICATION, VersionLabels=[version])["ApplicationVersions"][0]["Status"]
         if state == "PROCESSED":
             break
         if state == "FAILED":

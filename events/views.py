@@ -98,9 +98,9 @@ class EventListView(ListView):
                 park.facility_labels = facility_labels(park)
                 park.details_url = park_details_url(park)
         context.update(filters=self.filters, filter_form=self.filter_form, filter_pills=filter_pills(self.filters),
-            explore_params=params, map_url=reverse('event_map_api') + '?' + params.urlencode(),
-            event_total=matching_events(self.filters, self.request.user).count(),
-            park_total=displayed_parks(self.filters, self.request.user).count())
+                       explore_params=params, map_url=reverse('event_map_api') + '?' + params.urlencode(),
+                       event_total=matching_events(self.filters, self.request.user).count(),
+                       park_total=displayed_parks(self.filters, self.request.user).count())
         has_park_data = Park.objects.filter(is_retired=False).exists()
         list_state, map_state = explore_empty_state(
             self.filters, context['event_total'], context['park_total'], has_park_data)
@@ -213,4 +213,3 @@ class EventDetailView(DetailView):
 
     def get_queryset(self):
         return Event.objects.select_related('park', 'organizer')
-

@@ -215,4 +215,3 @@ class Command(BaseCommand):
                 f"(skipped {skipped_facilities} unlinked facility rows)."
             )
         )
-

@@ -1,0 +1,35 @@
+# Travis CI: lint with flake8, run every test suite under coverage, report to Coveralls.
+# Deploys stay in GitHub Actions (.github/workflows/deploy-develop.yml).
+language: python
+os: linux
+dist: jammy
+python: "3.12"
+cache: pip
+
+# Push builds for develop and main, plus every pull request into them.
+branches:
+  only:
+    - develop
+    - main
+
+before_install:
+  - nvm install 22  # Node's built-in test runner for the map/filter JS tests (no npm packages)
+
+install:
+  - python -m pip install --upgrade pip
+  - python -m pip install -r requirements.txt -r requirements-dev.txt
+
+script:
+  - python -m pip check
+  - flake8 .
+  - python manage.py check
+  - python manage.py makemigrations --check --dry-run
+  - coverage run manage.py test
+  - coverage run --append -m unittest discover -s infra -p 'test_*.py'
+  - coverage report
+  - node --test events/js/explore.test.cjs events/js/lookahead-select.test.cjs
+  - find .platform/hooks .platform/confighooks -name '*.sh' -exec bash -n {} +
+
+# Needs COVERALLS_REPO_TOKEN set in the Travis repository settings (never commit it).
+after_success:
+  - coveralls

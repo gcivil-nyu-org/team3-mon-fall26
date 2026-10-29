@@ -33,7 +33,7 @@ class BudgetStopTests(unittest.TestCase):
         self.clients["ec2"].describe_instances.return_value = {"Reservations": [{"Instances": [self.instance]}]}
         self.clients["cloudfront"].get_distribution_config.return_value = {
             "ETag": "version", "DistributionConfig": {"Enabled": True,
-                "Origins": {"Items": [{"DomainName": "team.example.com"}]}},
+                                                      "Origins": {"Items": [{"DomainName": "team.example.com"}]}},
         }
 
     def assert_no_changes(self):
@@ -78,7 +78,8 @@ class BudgetStopTests(unittest.TestCase):
         self.assertIn("ReplaceUnhealthy", processes)
         self.assertIn("Launch", processes)
         self.clients["ec2"].stop_instances.assert_called_once_with(InstanceIds=["i-team"])
-        self.assertFalse(self.clients["cloudfront"].update_distribution.call_args.kwargs["DistributionConfig"]["Enabled"])
+        updated = self.clients["cloudfront"].update_distribution.call_args.kwargs["DistributionConfig"]
+        self.assertFalse(updated["Enabled"])
 
     def test_dry_run_checks_targets_but_never_stops(self):
         self.assertEqual(handler({"dry_run": True}, None, self.clients)["action"], "dry_run")

@@ -185,4 +185,3 @@ class CommaTokenQTests(TestCase):
         self.assertEqual(parks_with('softball'), set())
         self.assertEqual(parks_with('regulation_soccer'), set())
         self.assertEqual(parks_with('nonregulation_soccer'), {'Pair'})
-

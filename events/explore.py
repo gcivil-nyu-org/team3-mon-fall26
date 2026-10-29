@@ -50,14 +50,16 @@ class ExploreFilterForm(forms.Form):
         'data-lookahead': '', 'data-autosubmit': '', 'data-placeholder': 'Type a sport',
         'data-empty': 'No matching sports'}))
     facility = ValidChoices(required=False, choices=Facility.SPORT_FIELDS, label='Facilities',
-        widget=forms.SelectMultiple(attrs={'data-lookahead': '', 'data-autosubmit': '',
-            'data-placeholder': 'Type a facility, e.g. tennis', 'data-empty': 'No matching facilities'}))
+                            widget=forms.SelectMultiple(attrs={
+                                'data-lookahead': '', 'data-autosubmit': '',
+                                'data-placeholder': 'Type a facility, e.g. tennis',
+                                'data-empty': 'No matching facilities'}))
     when = forms.ChoiceField(required=False, choices=[('', 'Any date'), ('today', 'Today')], label='Date')
     date_from = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}), label='From')
     date_to = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}), label='To')
     skill = forms.ChoiceField(required=False, choices=[('', 'Any skill level'), *SkillLevel.choices])
     scope = forms.ChoiceField(required=False, choices=[('all', 'All events'), ('mine', 'All mine'),
-        ('attending', 'Attending'), ('hosting', 'Hosting')])
+                                                       ('attending', 'Attending'), ('hosting', 'Hosting')])
     events_only = forms.BooleanField(required=False, label='Only parks with events')
     park = forms.IntegerField(required=False, min_value=1)
     view = forms.ChoiceField(required=False, choices=[('map', 'Map'), ('list', 'List')])
@@ -185,8 +187,8 @@ def matching_events(filters, user=None):
     if filters.get('q'):
         q = filters['q']
         events = events.filter(Q(title__icontains=q) | Q(description__icontains=q)
-            | Q(meeting_spot__icontains=q) | Q(park__name__icontains=q)
-            | Q(park__address__icontains=q) | Q(park__location__icontains=q))
+                               | Q(meeting_spot__icontains=q) | Q(park__name__icontains=q)
+                               | Q(park__address__icontains=q) | Q(park__location__icontains=q))
     if filters.get('sport'):
         events = events.filter(activity__in=filters['sport'])
     if filters.get('when') == 'today':
