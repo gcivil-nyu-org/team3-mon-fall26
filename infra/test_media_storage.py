@@ -1,8 +1,8 @@
 """Keep uploaded media private, prefix-scoped and free of always-on resources."""
+
 import json
 from pathlib import Path
 import unittest
-
 
 INFRA = Path(__file__).resolve().parent
 BUCKET = "arn:aws:s3:::nyc-active-media-287872994760-us-east-1"

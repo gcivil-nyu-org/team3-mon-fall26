@@ -3,6 +3,7 @@
 Every scenario is checked across all presentations that share the filter engine: the Events list
 tab, the Parks list tab and the map endpoint (which the map fits its bounds to).
 """
+
 import datetime
 import re
 from html import unescape
@@ -25,8 +26,15 @@ class BoroughAndZipFilterTests(TestCase):
         cls.host = get_user_model().objects.create_user('zip-host', 'zip@example.test')
 
         def park(code, name, borough, zipcode, **extra):
-            return Park.objects.create(gispropnum=code, name=name, borough=borough, zipcode=zipcode,
-                                       latitude='40.700000', longitude='-73.950000', **extra)
+            return Park.objects.create(
+                gispropnum=code,
+                name=name,
+                borough=borough,
+                zipcode=zipcode,
+                latitude='40.700000',
+                longitude='-73.950000',
+                **extra,
+            )
 
         cls.heights = park('B1', 'Brooklyn Heights Promenade', Borough.BROOKLYN, '11201')
         cls.mccarren = park('B2', 'McCarren Park', Borough.BROOKLYN, '11211')
@@ -39,14 +47,27 @@ class BoroughAndZipFilterTests(TestCase):
         cls.retired = park('B9', 'Retired Brooklyn Park', Borough.BROOKLYN, '11211, 11299', is_retired=True)
 
         day = timezone.now().astimezone(NYC_TZ).date() + datetime.timedelta(days=2)
-        for p in (cls.heights, cls.mccarren, cls.prospect, cls.bushwick, cls.central, cls.flushing,
-                  cls.retired):
-            Event.objects.create(organizer=cls.host, park=p, title=f'Game at {p.name}',
-                                 activity=Activity.BASKETBALL, date=day, time=datetime.time(18),
-                                 skill_level=SkillLevel.ALL, description='Pickup run')
-        Event.objects.create(organizer=cls.host, park=cls.mccarren, title='Competitive tennis at McCarren',
-                             activity=Activity.TENNIS, date=day, time=datetime.time(9),
-                             skill_level=SkillLevel.COMPETITIVE, description='Ladder match')
+        for p in (cls.heights, cls.mccarren, cls.prospect, cls.bushwick, cls.central, cls.flushing, cls.retired):
+            Event.objects.create(
+                organizer=cls.host,
+                park=p,
+                title=f'Game at {p.name}',
+                activity=Activity.BASKETBALL,
+                date=day,
+                time=datetime.time(18),
+                skill_level=SkillLevel.ALL,
+                description='Pickup run',
+            )
+        Event.objects.create(
+            organizer=cls.host,
+            park=cls.mccarren,
+            title='Competitive tennis at McCarren',
+            activity=Activity.TENNIS,
+            date=day,
+            time=datetime.time(9),
+            skill_level=SkillLevel.COMPETITIVE,
+            description='Ladder match',
+        )
 
     def results(self, params):
         """(event titles, park names) from the Events tab, Parks tab and map, asserting all three agree."""
@@ -55,8 +76,9 @@ class BoroughAndZipFilterTests(TestCase):
         map_data = self.client.get(reverse('event_map_api'), params).json()
         events = {event.title for event in events_tab.context['events']}
         parks = {park.name for park in parks_tab.context['parks']}
-        self.assertEqual({park['name'] for park in map_data['parks']}, parks,
-                         'the map must show exactly the parks in the Parks tab')
+        self.assertEqual(
+            {park['name'] for park in map_data['parks']}, parks, 'the map must show exactly the parks in the Parks tab'
+        )
         self.assertEqual(events_tab.context['event_total'], len(events))
         # Events always sit at a displayed park.
         event_parks = {event.park.name for event in events_tab.context['events']}
@@ -66,11 +88,17 @@ class BoroughAndZipFilterTests(TestCase):
     # Scenario: Filter by borough
     def test_borough_shows_only_that_boroughs_parks_and_events_everywhere(self):
         events, parks = self.results({'borough': Borough.BROOKLYN})
-        self.assertEqual(parks, {'Brooklyn Heights Promenade', 'McCarren Park', 'Prospect Park',
-                                 'Bushwick Inlet Park'})
-        self.assertEqual(events, {'Game at Brooklyn Heights Promenade', 'Game at McCarren Park',
-                                  'Game at Prospect Park', 'Game at Bushwick Inlet Park',
-                                  'Competitive tennis at McCarren'})
+        self.assertEqual(parks, {'Brooklyn Heights Promenade', 'McCarren Park', 'Prospect Park', 'Bushwick Inlet Park'})
+        self.assertEqual(
+            events,
+            {
+                'Game at Brooklyn Heights Promenade',
+                'Game at McCarren Park',
+                'Game at Prospect Park',
+                'Game at Bushwick Inlet Park',
+                'Competitive tennis at McCarren',
+            },
+        )
 
     def test_unknown_borough_is_ignored(self):
         _, parks = self.results({'borough': 'ZZ'})
@@ -79,8 +107,7 @@ class BoroughAndZipFilterTests(TestCase):
 
     # Scenario: Zip code lookahead (options) + single zip
     def test_lookahead_options_are_distinct_five_digit_zips_of_active_parks(self):
-        self.assertEqual(zip_code_choices(),
-                         ['10029', '10128', '11201', '11211', '11215', '11222', '11225', '11368'])
+        self.assertEqual(zip_code_choices(), ['10029', '10128', '11201', '11211', '11215', '11222', '11225', '11368'])
         page = self.client.get(reverse('event_list'), {'view': 'list'})
         widget_choices = [value for value, _ in page.context['filter_form'].fields['zip'].widget.choices]
         self.assertEqual(widget_choices, zip_code_choices())
@@ -90,8 +117,9 @@ class BoroughAndZipFilterTests(TestCase):
     def test_single_zip_filters_parks_and_the_events_at_them(self):
         events, parks = self.results({'zip': '11211'})
         self.assertEqual(parks, {'McCarren Park', 'Bushwick Inlet Park'})
-        self.assertEqual(events, {'Game at McCarren Park', 'Competitive tennis at McCarren',
-                                  'Game at Bushwick Inlet Park'})
+        self.assertEqual(
+            events, {'Game at McCarren Park', 'Competitive tennis at McCarren', 'Game at Bushwick Inlet Park'}
+        )
 
     # Scenario: Multiple zip codes (OR)
     def test_multiple_zips_match_parks_in_either(self):
@@ -149,8 +177,7 @@ class BoroughAndZipFilterTests(TestCase):
         query = parse_qs(urlsplit(pills['Borough: Brooklyn']).query)
         self.assertNotIn('borough', query)
         self.assertEqual(query['zip'], ['11201', '11211'])
-        self.assertEqual(self.results(query)[1], {'Brooklyn Heights Promenade', 'McCarren Park',
-                                                  'Bushwick Inlet Park'})
+        self.assertEqual(self.results(query)[1], {'Brooklyn Heights Promenade', 'McCarren Park', 'Bushwick Inlet Park'})
 
         clear = unescape(re.search(r'class="explore-clear" href="([^"]+)"', page.content.decode()).group(1))
         query = parse_qs(urlsplit(clear).query)

@@ -57,12 +57,13 @@ costs can continue after stopping. See [cost controls](docs/cost-controls.md).
 ## Continuous integration
 
 Travis CI (`.travis.yml`) runs on pushes to `develop`/`main` and on pull requests into them:
-flake8 (`.flake8`, 120-column lines), Django and infra tests under coverage (`.coveragerc`),
+Black formatting (`pyproject.toml`) and flake8 (`.flake8`), both at 120 columns, Django and infra tests under coverage (`.coveragerc`),
 the Node JS tests and deploy-hook syntax checks, then reports coverage to Coveralls.
 CI-only tools are in `requirements-dev.txt`. Run the same checks locally:
 
 ```sh
 python -m pip install -r requirements-dev.txt
+black .          # formats code; CI runs black --check
 flake8 .
 coverage run manage.py test && coverage report
 ```

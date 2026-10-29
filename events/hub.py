@@ -1,4 +1,5 @@
 """Remember only validated Explore state; never accept a caller-supplied return URL."""
+
 from django.urls import reverse
 
 from .explore import filter_params

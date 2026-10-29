@@ -1,4 +1,5 @@
 """Shared query and URL-state contract; map/list presentation is a follow-up."""
+
 import datetime
 from html import unescape
 import re
@@ -21,14 +22,27 @@ class ExploreFilterTests(TestCase):
     def setUpTestData(cls):
         cls.host = get_user_model().objects.create_user('map-host', 'map@example.test')
         cls.other = get_user_model().objects.create_user('other-host', 'other@example.test')
-        cls.central = Park.objects.create(gispropnum='M1', name='Central Park', borough='M',
-                                          address='Central Park West', zipcode='10029, 10128',
-                                          latitude='40.781200', longitude='-73.966500')
-        cls.mccarren = Park.objects.create(gispropnum='B1', name='McCarren Park', borough='B',
-                                           zipcode='11211', latitude='40.721400', longitude='-73.951500')
+        cls.central = Park.objects.create(
+            gispropnum='M1',
+            name='Central Park',
+            borough='M',
+            address='Central Park West',
+            zipcode='10029, 10128',
+            latitude='40.781200',
+            longitude='-73.966500',
+        )
+        cls.mccarren = Park.objects.create(
+            gispropnum='B1',
+            name='McCarren Park',
+            borough='B',
+            zipcode='11211',
+            latitude='40.721400',
+            longitude='-73.951500',
+        )
         cls.unmapped = Park.objects.create(gispropnum='Q1', name='Unmapped Park', borough='Q', zipcode='11355')
-        cls.retired = Park.objects.create(gispropnum='R1', name='Retired Park', borough='R',
-                                          latitude=40, longitude=-74, is_retired=True)
+        cls.retired = Park.objects.create(
+            gispropnum='R1', name='Retired Park', borough='R', latitude=40, longitude=-74, is_retired=True
+        )
         for index, key in enumerate(('tennis', 'track_and_field', 'nonregulation_soccer')):
             Facility.objects.create(system_id=f'M-{index}', park=cls.central, sports=key)
         Facility.objects.create(system_id='B-1', park=cls.mccarren, sports='basketball', feature_status='Inactive')
@@ -40,9 +54,16 @@ class ExploreFilterTests(TestCase):
         self.addCleanup(self.clock.stop)
 
     def event(self, park=None, **changes):
-        data = dict(organizer=self.host, park=park or self.mccarren, title='Saturday pickup',
-                    activity='basketball', date=self.now.date()+datetime.timedelta(days=1),
-                    time=datetime.time(15), description='Friendly game', capacity=10)
+        data = dict(
+            organizer=self.host,
+            park=park or self.mccarren,
+            title='Saturday pickup',
+            activity='basketball',
+            date=self.now.date() + datetime.timedelta(days=1),
+            time=datetime.time(15),
+            description='Friendly game',
+            capacity=10,
+        )
         data.update(changes)
         return Event.objects.create(**data)
 
@@ -50,9 +71,12 @@ class ExploreFilterTests(TestCase):
         return parse_filters(QueryDict(query))[1]
 
     def test_defaults_invalid_parameters_and_multivalues(self):
-        form, f = parse_filters(QueryDict(
-            'view=nope&tab=nope&borough=ZZ&skill=expert&zip=11211&zip=x'
-            '&sport=tennis&sport=unknown&sport=tennis&facility=tennis&facility=bad&park=-1'))
+        form, f = parse_filters(
+            QueryDict(
+                'view=nope&tab=nope&borough=ZZ&skill=expert&zip=11211&zip=x'
+                '&sport=tennis&sport=unknown&sport=tennis&facility=tennis&facility=bad&park=-1'
+            )
+        )
         self.assertEqual((f['view'], f['tab'], f['scope']), ('map', 'events', 'all'))
         self.assertEqual((f['zip'], f['sport'], f['facility']), (['11211'], ['tennis'], ['tennis']))
         self.assertFalse(f['borough'])
@@ -62,11 +86,13 @@ class ExploreFilterTests(TestCase):
     def test_date_skill_change_counts_but_do_not_hide_parks(self):
         self.event(skill_level='all')
         self.event(skill_level='competitive')
-        self.event(date=self.now.date()+datetime.timedelta(days=2))
+        self.event(date=self.now.date() + datetime.timedelta(days=2))
         f = self.filters('date_from=2026-10-24&date_to=2026-10-24&skill=beginner')
         self.assertEqual(matching_events(f).count(), 1)
-        self.assertEqual(dict(displayed_parks(f).values_list('pk', 'event_count')),
-                         {self.central.pk: 0, self.mccarren.pk: 1, self.unmapped.pk: 0})
+        self.assertEqual(
+            dict(displayed_parks(f).values_list('pk', 'event_count')),
+            {self.central.pk: 0, self.mccarren.pk: 1, self.unmapped.pk: 0},
+        )
 
     def test_today_uses_new_york_date_at_utc_midnight(self):
         self.event(date=datetime.date(2026, 10, 23), time=datetime.time(22))
@@ -98,8 +124,9 @@ class ExploreFilterTests(TestCase):
         self.assertEqual(displayed_parks(self.filters('facility=regulation_soccer')).count(), 0)
 
     def test_sport_facilities_active_and_sport_without_facilities(self):
-        self.assertEqual(list(displayed_parks(self.filters('sport=tennis')).values_list('pk', flat=True)),
-                         [self.central.pk])
+        self.assertEqual(
+            list(displayed_parks(self.filters('sport=tennis')).values_list('pk', flat=True)), [self.central.pk]
+        )
         self.assertEqual(displayed_parks(self.filters('sport=basketball')).count(), 0)
         self.assertEqual(displayed_parks(self.filters('sport=running')).count(), 3)
 
@@ -113,24 +140,26 @@ class ExploreFilterTests(TestCase):
         params = parse_qs(urlsplit(next_link).query)
         self.assertEqual(params['zip'], ['11211', '10029'])
         self.assertEqual(params['sport'], ['basketball', 'tennis'])
-        second = self.client.get('/events/'+next_link)
+        second = self.client.get('/events/' + next_link)
         self.assertEqual(len(second.context['events']), 3)
         remove = next(p['url'] for p in page.context['filter_pills'] if p['label'] == 'Zip codes: 11211')
         self.assertEqual(parse_qs(urlsplit(remove).query)['zip'], ['10029'])
         self.assertNotIn('page=', remove)
 
     def test_legacy_include_past_is_retired(self):
-        self.event(date=self.now.date()-datetime.timedelta(days=1))
+        self.event(date=self.now.date() - datetime.timedelta(days=1))
         self.assertEqual(self.client.get('/events/api/upcoming/?include_past=1').json()['count'], 0)
         self.assertNotContains(self.client.get('/events/'), 'Include past events')
 
     def test_park_parameter_ignores_unknown_retired_or_invalid_ids(self):
         for value in ('invalid', '-1', '99999999', str(self.retired.pk)):
             with self.subTest(value=value):
-                self.assertIsNone(self.filters('park='+value)['park'])
-                self.assertEqual(displayed_parks(self.filters('park='+value)).count(), 3)
-        self.assertEqual(list(displayed_parks(self.filters(f'park={self.central.pk}')).values_list('pk', flat=True)),
-                         [self.central.pk])
+                self.assertIsNone(self.filters('park=' + value)['park'])
+                self.assertEqual(displayed_parks(self.filters('park=' + value)).count(), 3)
+        self.assertEqual(
+            list(displayed_parks(self.filters(f'park={self.central.pk}')).values_list('pk', flat=True)),
+            [self.central.pk],
+        )
 
     def test_feed_json_and_future_park_map_input_share_membership(self):
         first = self.event()
@@ -153,7 +182,7 @@ class ExploreFilterTests(TestCase):
         RSVP.objects.create(user=self.host, event=attending)
         self.event(organizer=self.other)
         for path in ('/events/', '/events/api/upcoming/'):
-            response = self.client.get(path+'?scope=mine')
+            response = self.client.get(path + '?scope=mine')
             self.assertEqual(response.status_code, 302)
             self.assertIn('next=', response.url)
         self.client.force_login(self.host)
@@ -165,7 +194,8 @@ class ExploreFilterTests(TestCase):
         self.assertEqual(displayed_parks(f, self.host).count(), 2)
         page = self.client.get('/events/?scope=mine')
         self.assertContains(
-            page, '<input type="checkbox" name="events_only" id="id_events_only" disabled checked>', html=True)
+            page, '<input type="checkbox" name="events_only" id="id_events_only" disabled checked>', html=True
+        )
 
     def test_query_count_stays_constant_and_facility_matches_do_not_multiply_counts(self):
         self.event(self.central, activity='tennis')
@@ -184,10 +214,12 @@ class ExploreFilterTests(TestCase):
 
     def test_switch_urls_keep_multivalues_and_reset_page(self):
         from django.template import Context, Template
+
         params = filter_params(self.filters('view=list&tab=parks&zip=11211&zip=10029&sport=tennis&sport=basketball'))
         params['page'] = '4'
         url = Template('{% load explore_tags %}{% explore_url view="map" tab="events" %}').render(
-            Context({'explore_params': params}))
+            Context({'explore_params': params})
+        )
         parsed = parse_qs(urlsplit(unescape(url)).query)
         self.assertEqual(parsed['zip'], ['11211', '10029'])
         self.assertEqual(parsed['sport'], ['tennis', 'basketball'])

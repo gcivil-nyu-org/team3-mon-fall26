@@ -13,7 +13,6 @@ from parks.models import Borough
 
 from .models import Profile, ProfileSkillLevel
 
-
 AVATAR_MAX_BYTES = 5 * 1024 * 1024
 AVATAR_SIZE = 512
 
@@ -102,10 +101,12 @@ class ProfileSetupForm(forms.ModelForm):
     avatar = forms.ImageField(
         label='Profile photo',
         required=False,
-        widget=forms.FileInput(attrs={
-            'accept': 'image/jpeg,image/png,image/webp',
-            'class': 'profile-photo-input',
-        }),
+        widget=forms.FileInput(
+            attrs={
+                'accept': 'image/jpeg,image/png,image/webp',
+                'class': 'profile-photo-input',
+            }
+        ),
     )
     # Set by the photo's X button (profile-photo.js).
     remove_avatar = forms.BooleanField(required=False, widget=forms.HiddenInput)
@@ -118,11 +119,13 @@ class ProfileSetupForm(forms.ModelForm):
         max_length=500,
         label='Bio',
         required=False,
-        widget=forms.Textarea(attrs={
-            'rows': 6,
-            'style': 'resize: none !important;',
-            'placeholder': 'Share a little bit about yourself or some fun facts.',
-        }),
+        widget=forms.Textarea(
+            attrs={
+                'rows': 6,
+                'style': 'resize: none !important;',
+                'placeholder': 'Share a little bit about yourself or some fun facts.',
+            }
+        ),
     )
     first_name = forms.CharField(
         max_length=150,
@@ -186,10 +189,7 @@ class ProfileSetupForm(forms.ModelForm):
                 submitted_sports.append(custom_sport)
         choices = list(COMMON_SPORTS)
         if self.instance and self.instance.pk:
-            choices.extend(
-                sport for sport in self.instance.favorite_sports
-                if sport not in choices
-            )
+            choices.extend(sport for sport in self.instance.favorite_sports if sport not in choices)
         choices.extend(sport for sport in submitted_sports if sport not in choices)
         self.fields['favorite_sports'].choices = [(sport, sport) for sport in choices]
 
@@ -197,12 +197,15 @@ class ProfileSetupForm(forms.ModelForm):
         display_username = self.cleaned_data['display_username'].strip()
         UnicodeUsernameValidator()(display_username)
         if display_username:
-            profile_taken = Profile.objects.filter(
-                display_username__iexact=display_username
-            ).exclude(pk=self.instance.pk).exists()
-            user_taken = get_user_model().objects.filter(
-                username__iexact=display_username
-            ).exclude(pk=self.instance.user_id).exists()
+            profile_taken = (
+                Profile.objects.filter(display_username__iexact=display_username).exclude(pk=self.instance.pk).exists()
+            )
+            user_taken = (
+                get_user_model()
+                .objects.filter(username__iexact=display_username)
+                .exclude(pk=self.instance.user_id)
+                .exists()
+            )
             if profile_taken or user_taken:
                 raise forms.ValidationError('That username is already in use.')
         return display_username

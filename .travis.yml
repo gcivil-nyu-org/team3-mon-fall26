@@ -1,4 +1,4 @@
-# Travis CI: lint with flake8, run every test suite under coverage, report to Coveralls.
+# Travis CI: check formatting with Black, lint with flake8, run every test suite under coverage, report to Coveralls.
 # Deploys stay in GitHub Actions (.github/workflows/deploy-develop.yml).
 language: python
 os: linux
@@ -21,6 +21,7 @@ install:
 
 script:
   - python -m pip check
+  - black --check --diff .
   - flake8 .
   - python manage.py check
   - python manage.py makemigrations --check --dry-run

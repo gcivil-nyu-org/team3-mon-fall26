@@ -183,9 +183,7 @@ class EventDiscoveryFeedTests(TestCase):
         self.manhattan_park = Park.objects.create(
             gispropnum='M010', name='Central Park', borough=Borough.MANHATTAN, address='Central Park West'
         )
-        self.brooklyn_park = Park.objects.create(
-            gispropnum='B073', name='Prospect Park', borough=Borough.BROOKLYN
-        )
+        self.brooklyn_park = Park.objects.create(gispropnum='B073', name='Prospect Park', borough=Borough.BROOKLYN)
         self.today = timezone.now().astimezone(NYC_TZ).date()
 
     def make_event(self, days=3, **overrides):
@@ -261,15 +259,18 @@ class EventDiscoveryFeedTests(TestCase):
 
     def test_feed_shows_events_created_through_the_create_form(self):
         self.client.login(username='host@nyu.edu', password=PASSWORD)
-        self.client.post(reverse('event_create'), {
-            'park': self.brooklyn_park.pk,
-            'activity': Activity.ULTIMATE_FRISBEE,
-            'date': (self.today + datetime.timedelta(days=4)).isoformat(),
-            'time': '15:00',
-            'skill_level': SkillLevel.BEGINNER,
-            'capacity': '',
-            'description': 'Bring a disc if you have one.',
-        })
+        self.client.post(
+            reverse('event_create'),
+            {
+                'park': self.brooklyn_park.pk,
+                'activity': Activity.ULTIMATE_FRISBEE,
+                'date': (self.today + datetime.timedelta(days=4)).isoformat(),
+                'time': '15:00',
+                'skill_level': SkillLevel.BEGINNER,
+                'capacity': '',
+                'description': 'Bring a disc if you have one.',
+            },
+        )
         self.client.logout()
 
         response = self.client.get(reverse('event_list'))
@@ -277,17 +278,34 @@ class EventDiscoveryFeedTests(TestCase):
         self.assertContains(response, 'Prospect Park')
 
     def test_borough_skill_and_sport_filters_combine(self):
-        self.make_event(title='Brooklyn Beginner Soccer', activity=Activity.SOCCER, park=self.brooklyn_park,
-                        skill_level=SkillLevel.BEGINNER)
-        self.make_event(title='Brooklyn Competitive Soccer', activity=Activity.SOCCER, park=self.brooklyn_park,
-                        skill_level=SkillLevel.COMPETITIVE)
+        self.make_event(
+            title='Brooklyn Beginner Soccer',
+            activity=Activity.SOCCER,
+            park=self.brooklyn_park,
+            skill_level=SkillLevel.BEGINNER,
+        )
+        self.make_event(
+            title='Brooklyn Competitive Soccer',
+            activity=Activity.SOCCER,
+            park=self.brooklyn_park,
+            skill_level=SkillLevel.COMPETITIVE,
+        )
         self.make_event(title='Manhattan Beginner Soccer', activity=Activity.SOCCER, skill_level=SkillLevel.BEGINNER)
-        self.make_event(title='Brooklyn Beginner Tennis', activity=Activity.TENNIS, park=self.brooklyn_park,
-                        skill_level=SkillLevel.BEGINNER)
+        self.make_event(
+            title='Brooklyn Beginner Tennis',
+            activity=Activity.TENNIS,
+            park=self.brooklyn_park,
+            skill_level=SkillLevel.BEGINNER,
+        )
 
-        response = self.client.get(reverse('event_list'), {
-            'borough': Borough.BROOKLYN, 'skill': SkillLevel.BEGINNER, 'sport': 'soccer',
-        })
+        response = self.client.get(
+            reverse('event_list'),
+            {
+                'borough': Borough.BROOKLYN,
+                'skill': SkillLevel.BEGINNER,
+                'sport': 'soccer',
+            },
+        )
 
         self.assertContains(response, 'Brooklyn Beginner Soccer')
         self.assertNotContains(response, 'Brooklyn Competitive Soccer')
@@ -422,9 +440,18 @@ class FoundationSchemaTests(TestCase):
             cursor.execute(
                 'INSERT INTO events_event (organizer_id, park_id, activity, date, time, skill_level, '
                 'description, status, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                [self.host.pk, self.park.pk, 'Pickup Basketball', ops.adapt_datefield_value(self.tomorrow),
-                 ops.adapt_timefield_value(datetime.time(18, 30)), SkillLevel.ALL, 'Old release',
-                 EventStatus.SCHEDULED, now, now],
+                [
+                    self.host.pk,
+                    self.park.pk,
+                    'Pickup Basketball',
+                    ops.adapt_datefield_value(self.tomorrow),
+                    ops.adapt_timefield_value(datetime.time(18, 30)),
+                    SkillLevel.ALL,
+                    'Old release',
+                    EventStatus.SCHEDULED,
+                    now,
+                    now,
+                ],
             )
         event = Event.objects.get(description='Old release')
 
@@ -466,10 +493,17 @@ class FoundationSchemaTests(TestCase):
         self.assertContains(page, 'Select a sport')
         self.assertContains(page, '<option value="ultimate_frisbee">Ultimate frisbee</option>', html=True)
 
-        response = self.client.post(reverse('event_create'), {
-            'park': self.park.pk, 'activity': 'Pickup Basketball', 'date': self.tomorrow.isoformat(),
-            'time': '18:30', 'skill_level': SkillLevel.ALL, 'description': 'Free text is no longer allowed.',
-        })
+        response = self.client.post(
+            reverse('event_create'),
+            {
+                'park': self.park.pk,
+                'activity': 'Pickup Basketball',
+                'date': self.tomorrow.isoformat(),
+                'time': '18:30',
+                'skill_level': SkillLevel.ALL,
+                'description': 'Free text is no longer allowed.',
+            },
+        )
         self.assertIn('activity', response.context['form'].errors)
         self.assertEqual(Event.objects.count(), 0)
 
@@ -524,8 +558,13 @@ class ActivityDataMigrationTests(TransactionTestCase):
         user = old_apps.get_model('auth', 'User').objects.create(username='host')
         park = old_apps.get_model('parks', 'Park').objects.create(gispropnum='M010', name='Central Park', borough='M')
         OldEvent = old_apps.get_model('events', 'Event')
-        common = {'organizer': user, 'park': park, 'date': datetime.date(2026, 11, 1),
-                  'time': datetime.time(9, 0), 'description': 'Sample'}
+        common = {
+            'organizer': user,
+            'park': park,
+            'date': datetime.date(2026, 11, 1),
+            'time': datetime.time(9, 0),
+            'description': 'Sample',
+        }
         run = OldEvent.objects.create(activity='Reservoir Loop Run', **common)
         hike = OldEvent.objects.create(activity='Greenbelt Hike', **common)
         titled = OldEvent.objects.create(activity='Pickup Soccer', title='Saturday 7v7', **common)

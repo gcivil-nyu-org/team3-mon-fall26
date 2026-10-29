@@ -1,4 +1,5 @@
 """Sync NYC Parks and Athletic Facilities from NYC Open Data Socrata JSON APIs."""
+
 from decimal import Decimal, InvalidOperation
 import json
 import re
@@ -46,6 +47,7 @@ def extract_centroid(multipolygon):
     lons = []
     lats = []
     if isinstance(multipolygon, dict):
+
         def walk(coords):
             if isinstance(coords, (list, tuple)):
                 if len(coords) >= 2 and isinstance(coords[0], (int, float)) and isinstance(coords[1], (int, float)):
@@ -54,6 +56,7 @@ def extract_centroid(multipolygon):
                 else:
                     for item in coords:
                         walk(item)
+
         walk(multipolygon.get("coordinates", []))
     elif isinstance(multipolygon, str):
         for lon_str, lat_str in re.findall(r"(-?\d+\.\d+)\s+(-?\d+\.\d+)", multipolygon):
@@ -104,12 +107,8 @@ class Command(BaseCommand):
                 return
             raise CommandError(message) from exc
 
-        protected_parks = set(
-            Park.objects.filter(admin_modified=True).values_list("gispropnum", flat=True)
-        )
-        protected_facilities = set(
-            Facility.objects.filter(admin_modified=True).values_list("system_id", flat=True)
-        )
+        protected_parks = set(Park.objects.filter(admin_modified=True).values_list("gispropnum", flat=True))
+        protected_facilities = set(Facility.objects.filter(admin_modified=True).values_list("system_id", flat=True))
 
         park_objects = {}
         for row in parks_raw:

@@ -1,6 +1,8 @@
 [flake8]
 # The team's code is written to ~120 columns; 79 would flag over 1,000 existing lines.
 max-line-length = 120
+# Black-compatible: Black puts spaces before ':' in slices and allows one-line '...' bodies.
+extend-ignore = E203, E701, E704
 exclude =
     .git,
     __pycache__,

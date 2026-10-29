@@ -7,17 +7,25 @@ from budget_stop import handler
 
 class BudgetStopTests(unittest.TestCase):
     def setUp(self):
-        self.environment = patch.dict(os.environ, {
-            "ACCOUNT_ID": "123456789012", "TEAM_ENVIRONMENT": "team-demo",
-            "TEAM_ENVIRONMENT_ID": "e-team", "TEAM_ASG": "team-group",
-            "TEAM_DISTRIBUTION": "TEAMCF", "BUDGET_NAME": "team-budget",
-            "TEAM_ORIGIN": "team.example.com", "MONTHLY_LIMIT_USD": "15",
-        })
+        self.environment = patch.dict(
+            os.environ,
+            {
+                "ACCOUNT_ID": "123456789012",
+                "TEAM_ENVIRONMENT": "team-demo",
+                "TEAM_ENVIRONMENT_ID": "e-team",
+                "TEAM_ASG": "team-group",
+                "TEAM_DISTRIBUTION": "TEAMCF",
+                "BUDGET_NAME": "team-budget",
+                "TEAM_ORIGIN": "team.example.com",
+                "MONTHLY_LIMIT_USD": "15",
+            },
+        )
         self.environment.start()
         self.addCleanup(self.environment.stop)
         self.clients = {name: MagicMock() for name in ["budgets", "ec2", "autoscaling", "cloudfront"]}
         self.budget = {
-            "TimeUnit": "MONTHLY", "BudgetLimit": {"Amount": "15", "Unit": "USD"},
+            "TimeUnit": "MONTHLY",
+            "BudgetLimit": {"Amount": "15", "Unit": "USD"},
             "CostFilters": {"TagKeyValue": ["user:Project$NYCActive"]},
             "CostTypes": {"IncludeCredit": False},
             "CalculatedSpend": {"ActualSpend": {"Amount": "15", "Unit": "USD"}},
@@ -26,14 +34,18 @@ class BudgetStopTests(unittest.TestCase):
         self.clients["autoscaling"].describe_auto_scaling_groups.return_value = {
             "AutoScalingGroups": [{"Tags": [{"Key": "elasticbeanstalk:environment-id", "Value": "e-team"}]}],
         }
-        self.instance = {"InstanceId": "i-team", "State": {"Name": "running"}, "Tags": [
-            {"Key": "elasticbeanstalk:environment-name", "Value": "team-demo"},
-            {"Key": "aws:autoscaling:groupName", "Value": "team-group"},
-        ]}
+        self.instance = {
+            "InstanceId": "i-team",
+            "State": {"Name": "running"},
+            "Tags": [
+                {"Key": "elasticbeanstalk:environment-name", "Value": "team-demo"},
+                {"Key": "aws:autoscaling:groupName", "Value": "team-group"},
+            ],
+        }
         self.clients["ec2"].describe_instances.return_value = {"Reservations": [{"Instances": [self.instance]}]}
         self.clients["cloudfront"].get_distribution_config.return_value = {
-            "ETag": "version", "DistributionConfig": {"Enabled": True,
-                                                      "Origins": {"Items": [{"DomainName": "team.example.com"}]}},
+            "ETag": "version",
+            "DistributionConfig": {"Enabled": True, "Origins": {"Items": [{"DomainName": "team.example.com"}]}},
         }
 
     def assert_no_changes(self):
@@ -68,12 +80,21 @@ class BudgetStopTests(unittest.TestCase):
     def test_threshold_suspends_replacement_disables_cf_and_stops_team(self):
         result = handler({}, None, self.clients)
         self.assertEqual(result["action"], "stop_team_environment")
-        self.clients["autoscaling"].create_or_update_tags.assert_called_once_with(Tags=[{
-            "ResourceId": "team-group", "ResourceType": "auto-scaling-group",
-            "Key": "nyc-active:budget-stopped", "Value": "true", "PropagateAtLaunch": False,
-        }])
-        self.assertEqual([c[0] for c in self.clients["autoscaling"].method_calls[-2:]],
-                         ["create_or_update_tags", "suspend_processes"])
+        self.clients["autoscaling"].create_or_update_tags.assert_called_once_with(
+            Tags=[
+                {
+                    "ResourceId": "team-group",
+                    "ResourceType": "auto-scaling-group",
+                    "Key": "nyc-active:budget-stopped",
+                    "Value": "true",
+                    "PropagateAtLaunch": False,
+                }
+            ]
+        )
+        self.assertEqual(
+            [c[0] for c in self.clients["autoscaling"].method_calls[-2:]],
+            ["create_or_update_tags", "suspend_processes"],
+        )
         processes = self.clients["autoscaling"].suspend_processes.call_args.kwargs["ScalingProcesses"]
         self.assertIn("ReplaceUnhealthy", processes)
         self.assertIn("Launch", processes)

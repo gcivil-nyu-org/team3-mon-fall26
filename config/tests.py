@@ -191,8 +191,7 @@ class ProductionSettingsTests(SimpleTestCase):
             DJANGO_DATABASE_PATH=os.path.join(tempfile.gettempdir(), "nyc-active-check.sqlite3"),
             DJANGO_HTTPS="False",
         )
-        for name in ("DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD",
-                     "DJANGO_MEDIA_BUCKET", "DJANGO_MEDIA_REGION"):
+        for name in ("DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD", "DJANGO_MEDIA_BUCKET", "DJANGO_MEDIA_REGION"):
             environment.pop(name)
         collected = subprocess.run(
             [sys.executable, "manage.py", "collectstatic", "--noinput", "--verbosity", "0"],

@@ -1,4 +1,5 @@
 """Public landing page and infrastructure probes."""
+
 from django.db import DatabaseError, connection
 from django.http import JsonResponse
 from django.shortcuts import render

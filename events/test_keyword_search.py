@@ -3,6 +3,7 @@
 
 Every scenario is checked across the Events list tab, the Parks list tab and the map endpoint.
 """
+
 import datetime
 import re
 from urllib.parse import parse_qs, urlsplit
@@ -24,27 +25,45 @@ class KeywordSearchTests(TestCase):
         cls.host = get_user_model().objects.create_user('search-host', 'search@example.test')
 
         def park(code, name, borough, zipcode, address='', location=''):
-            return Park.objects.create(gispropnum=code, name=name, borough=borough, zipcode=zipcode,
-                                       address=address, location=location,
-                                       latitude='40.700000', longitude='-73.950000')
+            return Park.objects.create(
+                gispropnum=code,
+                name=name,
+                borough=borough,
+                zipcode=zipcode,
+                address=address,
+                location=location,
+                latitude='40.700000',
+                longitude='-73.950000',
+            )
 
-        cls.astoria = park('Q1', 'Astoria Park', Borough.QUEENS, '11102', '19 St. & Shore Blvd',
-                           'Shore Blvd, Ditmars Blvd, 19 St')
-        cls.hudson = park('M1', 'Hudson River Park', Borough.MANHATTAN, '10014', 'Pier 40, 353 West St',
-                          'West St & W Houston St')
-        cls.mccarren = park('B1', 'McCarren Park', Borough.BROOKLYN, '11211', '776 Lorimer St',
-                            'Bedford Ave, Lorimer St, N 12 St')
+        cls.astoria = park(
+            'Q1', 'Astoria Park', Borough.QUEENS, '11102', '19 St. & Shore Blvd', 'Shore Blvd, Ditmars Blvd, 19 St'
+        )
+        cls.hudson = park(
+            'M1', 'Hudson River Park', Borough.MANHATTAN, '10014', 'Pier 40, 353 West St', 'West St & W Houston St'
+        )
+        cls.mccarren = park(
+            'B1', 'McCarren Park', Borough.BROOKLYN, '11211', '776 Lorimer St', 'Bedford Ave, Lorimer St, N 12 St'
+        )
         cls.mccarren_annex = park('B2', 'McCarren Annex', Borough.BROOKLYN, '11222', 'Nassau Ave')
         cls.mccarren_manhattan = park('M2', 'McCarren Playground', Borough.MANHATTAN, '10002', 'Essex St')
-        cls.cooper = park('B3', 'Cooper Park', Borough.BROOKLYN, '11211', 'Olive St & Maspeth Ave',
-                          'Olive St, Sharon St')
+        cls.cooper = park(
+            'B3', 'Cooper Park', Borough.BROOKLYN, '11211', 'Olive St & Maspeth Ave', 'Olive St, Sharon St'
+        )
 
         day = timezone.now().astimezone(NYC_TZ).date() + datetime.timedelta(days=2)
 
         def event(title, p, description='Pickup game', meeting_spot=''):
-            return Event.objects.create(organizer=cls.host, park=p, title=title, description=description,
-                                        meeting_spot=meeting_spot, activity=Activity.OTHER, date=day,
-                                        time=datetime.time(10))
+            return Event.objects.create(
+                organizer=cls.host,
+                park=p,
+                title=title,
+                description=description,
+                meeting_spot=meeting_spot,
+                activity=Activity.OTHER,
+                date=day,
+                time=datetime.time(10),
+            )
 
         event('Saturday Morning 5v5 Pickup', cls.cooper, description='Bring a light and a dark shirt.')
         event('Sunset jog', cls.mccarren, meeting_spot='Track entrance')
@@ -119,8 +138,7 @@ class KeywordSearchTests(TestCase):
 
     # Scenario: Clearing and no results
     def test_clearing_the_search_resets_to_the_other_filters(self):
-        page = self.client.get(reverse('event_list'), {'view': 'list', 'borough': 'B', 'zip': '11211',
-                                                       'q': 'McCarren'})
+        page = self.client.get(reverse('event_list'), {'view': 'list', 'borough': 'B', 'zip': '11211', 'q': 'McCarren'})
         pill = next(p['url'] for p in page.context['filter_pills'] if p['label'] == 'Search: McCarren')
         query = parse_qs(urlsplit(pill).query)
         self.assertNotIn('q', query)

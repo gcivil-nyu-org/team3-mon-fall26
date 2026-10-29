@@ -1,4 +1,5 @@
 """Publish a tested develop commit without creating or resuming infrastructure."""
+
 from decimal import Decimal
 import json
 import os
@@ -26,11 +27,13 @@ BUDGET_STOP_TAG = "nyc-active:budget-stopped"
 
 def preflight(clients, require_ready=True):
     budget = clients["budgets"].describe_budget(AccountId=ACCOUNT, BudgetName=BUDGET)["Budget"]
-    if (budget.get("TimeUnit") != "MONTHLY"
-            or budget.get("CostFilters", {}).get("TagKeyValue") != ["user:Project$NYCActive"]
-            or budget.get("CostTypes", {}).get("IncludeCredit") is not False
-            or budget.get("BudgetLimit", {}).get("Unit") != "USD"
-            or Decimal(budget["BudgetLimit"]["Amount"]) != 15):
+    if (
+        budget.get("TimeUnit") != "MONTHLY"
+        or budget.get("CostFilters", {}).get("TagKeyValue") != ["user:Project$NYCActive"]
+        or budget.get("CostTypes", {}).get("IncludeCredit") is not False
+        or budget.get("BudgetLimit", {}).get("Unit") != "USD"
+        or Decimal(budget["BudgetLimit"]["Amount"]) != 15
+    ):
         raise RuntimeError("Team budget configuration changed; deployment blocked")
     actual = budget.get("CalculatedSpend", {}).get("ActualSpend")
     if not actual or actual.get("Unit") != "USD" or Decimal(actual["Amount"]) >= 15:
@@ -42,8 +45,11 @@ def preflight(clients, require_ready=True):
     if len(environments) != 1:
         raise RuntimeError("Existing team environment was not found")
     environment = environments[0]
-    if (environment["ApplicationName"] != APPLICATION or environment["EnvironmentId"] != ENVIRONMENT_ID
-            or environment["CNAME"] != ORIGIN):
+    if (
+        environment["ApplicationName"] != APPLICATION
+        or environment["EnvironmentId"] != ENVIRONMENT_ID
+        or environment["CNAME"] != ORIGIN
+    ):
         raise RuntimeError("Environment identity changed; deployment blocked")
     if require_ready and environment["Status"] != "Ready":
         raise RuntimeError("The team environment is busy; retry after its current operation finishes")
@@ -52,10 +58,12 @@ def preflight(clients, require_ready=True):
         raise RuntimeError("Expected team Auto Scaling group was not found")
     group = groups[0]
     tags = {t["Key"]: t["Value"] for t in group.get("Tags", [])}
-    if (tags.get("elasticbeanstalk:environment-id") != ENVIRONMENT_ID
-            or any(group[k] != 1 for k in ["DesiredCapacity", "MinSize", "MaxSize"])
-            or tags.get(BUDGET_STOP_TAG) == "true"
-            or (require_ready and group.get("SuspendedProcesses"))):
+    if (
+        tags.get("elasticbeanstalk:environment-id") != ENVIRONMENT_ID
+        or any(group[k] != 1 for k in ["DesiredCapacity", "MinSize", "MaxSize"])
+        or tags.get(BUDGET_STOP_TAG) == "true"
+        or (require_ready and group.get("SuspendedProcesses"))
+    ):
         raise RuntimeError("Team capacity is changed or paused; deployment must not resume it")
     return environment
 
@@ -107,9 +115,11 @@ def deploy_version(clients, version, previous):
 
 
 def main():
-    if (os.environ.get("GITHUB_REPOSITORY") != REPOSITORY
-            or os.environ.get("GITHUB_REF") != "refs/heads/develop"
-            or os.environ.get("GITHUB_EVENT_NAME") != "push"):
+    if (
+        os.environ.get("GITHUB_REPOSITORY") != REPOSITORY
+        or os.environ.get("GITHUB_REF") != "refs/heads/develop"
+        or os.environ.get("GITHUB_EVENT_NAME") != "push"
+    ):
         raise RuntimeError("Only pushes to the central develop branch can deploy")
     sha = os.environ["GITHUB_SHA"]
     run_id = os.environ["GITHUB_RUN_ID"]
@@ -123,6 +133,7 @@ def main():
         print("A newer develop commit exists; skipping this outdated release", flush=True)
         return
     import boto3
+
     session = boto3.Session(region_name=REGION)
     if session.client("sts").get_caller_identity()["Account"] != ACCOUNT:
         raise RuntimeError("Unexpected AWS account")
@@ -133,22 +144,31 @@ def main():
     archive.parent.mkdir(exist_ok=True)
     subprocess.run(["git", "archive", "--format=zip", "--output=" + str(archive), sha], check=True)
     with zipfile.ZipFile(archive) as bundle:
-        if any(p.startswith((".github/", ".venv/", "infra/", "docs/"))
-               or p.endswith((".sqlite3", ".pem", ".key")) or Path(p).name.startswith(".env")
-               for p in bundle.namelist()):
+        if any(
+            p.startswith((".github/", ".venv/", "infra/", "docs/"))
+            or p.endswith((".sqlite3", ".pem", ".key"))
+            or Path(p).name.startswith(".env")
+            for p in bundle.namelist()
+        ):
             raise RuntimeError("Source bundle contains excluded local/deployment files")
     key = "nyc-active/gha/" + version + ".zip"
     session.client("s3").put_object(Bucket=BUCKET, Key=key, Body=archive.read_bytes(), ServerSideEncryption="AES256")
     eb = clients["elasticbeanstalk"]
-    existing = eb.describe_application_versions(
-        ApplicationName=APPLICATION, VersionLabels=[version])["ApplicationVersions"]
+    existing = eb.describe_application_versions(ApplicationName=APPLICATION, VersionLabels=[version])[
+        "ApplicationVersions"
+    ]
     if not existing:
-        eb.create_application_version(ApplicationName=APPLICATION, VersionLabel=version,
-                                      Description="develop " + sha, Process=True,
-                                      SourceBundle={"S3Bucket": BUCKET, "S3Key": key})
+        eb.create_application_version(
+            ApplicationName=APPLICATION,
+            VersionLabel=version,
+            Description="develop " + sha,
+            Process=True,
+            SourceBundle={"S3Bucket": BUCKET, "S3Key": key},
+        )
     for _ in range(30):
-        state = eb.describe_application_versions(
-            ApplicationName=APPLICATION, VersionLabels=[version])["ApplicationVersions"][0]["Status"]
+        state = eb.describe_application_versions(ApplicationName=APPLICATION, VersionLabels=[version])[
+            "ApplicationVersions"
+        ][0]["Status"]
         if state == "PROCESSED":
             break
         if state == "FAILED":

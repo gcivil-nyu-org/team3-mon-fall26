@@ -1,4 +1,5 @@
 """Public landing page and diagnostics while account routes remain disabled."""
+
 from django.urls import path
 
 from . import views

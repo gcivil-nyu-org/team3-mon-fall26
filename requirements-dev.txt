@@ -1,4 +1,5 @@
 # CI-only tools (Travis). Not installed on Elastic Beanstalk, which uses requirements.txt.
-flake8==7.1.1
+black==26.5.1
+flake8==7.4.1
 coverage==7.6.1
 coveralls==4.0.1

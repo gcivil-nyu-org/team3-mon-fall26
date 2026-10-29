@@ -13,8 +13,15 @@ from parks.models import Facility, Park
 from .forms import EventCreateForm
 from .hub import remember_explore
 from .models import Event
-from .explore import (configure_filter_form, displayed_parks, facility_labels,
-                      filter_params, filter_pills, matching_events, parse_filters)
+from .explore import (
+    configure_filter_form,
+    displayed_parks,
+    facility_labels,
+    filter_params,
+    filter_pills,
+    matching_events,
+    parse_filters,
+)
 
 
 def filter_events(params, user=None):
@@ -28,8 +35,19 @@ def personal_scope_redirect(request, filters):
         return redirect_to_login(request.get_full_path())
 
 
-CLEARABLE_FILTERS = ('q', 'borough', 'zip', 'sport', 'facility', 'when', 'date_from', 'date_to', 'skill',
-                     'park', 'events_only')
+CLEARABLE_FILTERS = (
+    'q',
+    'borough',
+    'zip',
+    'sport',
+    'facility',
+    'when',
+    'date_from',
+    'date_to',
+    'skill',
+    'park',
+    'events_only',
+)
 
 
 def clear_filters_url(filters):
@@ -48,8 +66,11 @@ def explore_empty_state(filters, event_total, park_total, has_park_data):
     if not has_park_data:
         return 'no_park_data', 'no_park_data'
     # "Only parks with events" can only be switched off on the All events scope.
-    no_parks = ('events_only_empty' if filters['events_only'] and filters['scope'] == 'all' and not event_total
-                else 'no_matches')
+    no_parks = (
+        'events_only_empty'
+        if filters['events_only'] and filters['scope'] == 'all' and not event_total
+        else 'no_matches'
+    )
     map_state = no_parks if not park_total else None
     if filters['tab'] == 'parks':
         return (no_parks if not park_total else None), map_state
@@ -80,9 +101,13 @@ class EventListView(ListView):
     def get_queryset(self):
         if self.filters['tab'] == 'parks':
             return displayed_parks(self.filters, self.request.user).prefetch_related(
-                Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active')))
-        return matching_events(self.filters, self.request.user).with_confirmed_players().select_related(
-            'park', 'organizer')
+                Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active'))
+            )
+        return (
+            matching_events(self.filters, self.request.user)
+            .with_confirmed_players()
+            .select_related('park', 'organizer')
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -97,15 +122,25 @@ class EventListView(ListView):
             for park in context['parks']:
                 park.facility_labels = facility_labels(park)
                 park.details_url = park_details_url(park)
-        context.update(filters=self.filters, filter_form=self.filter_form, filter_pills=filter_pills(self.filters),
-                       explore_params=params, map_url=reverse('event_map_api') + '?' + params.urlencode(),
-                       event_total=matching_events(self.filters, self.request.user).count(),
-                       park_total=displayed_parks(self.filters, self.request.user).count())
+        context.update(
+            filters=self.filters,
+            filter_form=self.filter_form,
+            filter_pills=filter_pills(self.filters),
+            explore_params=params,
+            map_url=reverse('event_map_api') + '?' + params.urlencode(),
+            event_total=matching_events(self.filters, self.request.user).count(),
+            park_total=displayed_parks(self.filters, self.request.user).count(),
+        )
         has_park_data = Park.objects.filter(is_retired=False).exists()
         list_state, map_state = explore_empty_state(
-            self.filters, context['event_total'], context['park_total'], has_park_data)
-        context.update(has_park_data=has_park_data, empty_state=list_state, map_empty_state=map_state,
-                       clear_filters_url=clear_filters_url(self.filters))
+            self.filters, context['event_total'], context['park_total'], has_park_data
+        )
+        context.update(
+            has_park_data=has_park_data,
+            empty_state=list_state,
+            map_empty_state=map_state,
+            clear_filters_url=clear_filters_url(self.filters),
+        )
         if panel:
             selected = displayed_parks(self.filters, self.request.user).prefetch_related('facilities').first()
             if selected:
@@ -159,12 +194,23 @@ def event_map_api(request):
     if redirect:
         return redirect
     parks = displayed_parks(filters, request.user).exclude(latitude=None).exclude(longitude=None)
-    results = [{'id': p.pk, 'name': p.name, 'borough': p.get_borough_display(),
-                'lat': float(p.latitude), 'lng': float(p.longitude), 'event_count': p.event_count,
-                'preview_url': reverse('explore_park_preview', kwargs={'pk': p.pk})}
-               for p in parks]
-    unmapped = matching_events(filters, request.user).filter(
-        Q(park__latitude__isnull=True) | Q(park__longitude__isnull=True)).count()
+    results = [
+        {
+            'id': p.pk,
+            'name': p.name,
+            'borough': p.get_borough_display(),
+            'lat': float(p.latitude),
+            'lng': float(p.longitude),
+            'event_count': p.event_count,
+            'preview_url': reverse('explore_park_preview', kwargs={'pk': p.pk}),
+        }
+        for p in parks
+    ]
+    unmapped = (
+        matching_events(filters, request.user)
+        .filter(Q(park__latitude__isnull=True) | Q(park__longitude__isnull=True))
+        .count()
+    )
     return JsonResponse({'parks': results, 'unmapped_event_count': unmapped})
 
 
@@ -185,7 +231,9 @@ def park_preview_context(park, filters, user):
     params['view'] = 'list'
     params['tab'] = 'events'
     return {
-        'park': park, 'facilities': facility_labels(park), 'details_url': park_details_url(park),
+        'park': park,
+        'facilities': facility_labels(park),
+        'details_url': park_details_url(park),
         'events_url': reverse('event_list') + '?' + params.urlencode(),
         'preview_events': matching_events(filters, user).filter(park=park).select_related('park', 'organizer')[:3],
     }

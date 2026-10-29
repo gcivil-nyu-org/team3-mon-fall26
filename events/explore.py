@@ -3,6 +3,7 @@
 Filter stories extend this module and includes/explore_filters.html rather than
 implementing a separate queryset for each presentation (US-2.1 / US-2.2).
 """
+
 import re
 from functools import reduce
 from operator import or_
@@ -35,31 +36,73 @@ class ZipCodes(forms.Field):
 
 class ExploreFilterForm(forms.Form):
     # US-2.7: parks by name/address/cross-streets, events by title/description/meeting spot (trimmed, max 100).
-    q = forms.CharField(required=False, label='Search', widget=forms.SearchInput(attrs={
-        'placeholder': 'Park name, address or event (e.g. Astoria, Bedford Ave, 5v5)', 'maxlength': 100,
-        'autocomplete': 'off', 'enterkeyhint': 'search'}))
+    q = forms.CharField(
+        required=False,
+        label='Search',
+        widget=forms.SearchInput(
+            attrs={
+                'placeholder': 'Park name, address or event (e.g. Astoria, Bedford Ave, 5v5)',
+                'maxlength': 100,
+                'autocomplete': 'off',
+                'enterkeyhint': 'search',
+            }
+        ),
+    )
     # US-2.3: borough and zip apply as soon as they change (data-autosubmit); the zip list is a
     # lookahead pill selector (static/js/lookahead-select.js) that US-2.4 reuses for sports/facilities.
-    borough = forms.ChoiceField(required=False, choices=[('', 'All boroughs'), *Borough.choices],
-                                widget=forms.Select(attrs={'data-autosubmit': ''}))
-    zip = ZipCodes(required=False, label='Zip codes', widget=forms.SelectMultiple(attrs={
-        'data-lookahead': '', 'data-autosubmit': '', 'data-placeholder': 'Type a zip code',
-        'data-empty': 'No matching NYC zip codes', 'data-inputmode': 'numeric'}))
+    borough = forms.ChoiceField(
+        required=False,
+        choices=[('', 'All boroughs'), *Borough.choices],
+        widget=forms.Select(attrs={'data-autosubmit': ''}),
+    )
+    zip = ZipCodes(
+        required=False,
+        label='Zip codes',
+        widget=forms.SelectMultiple(
+            attrs={
+                'data-lookahead': '',
+                'data-autosubmit': '',
+                'data-placeholder': 'Type a zip code',
+                'data-empty': 'No matching NYC zip codes',
+                'data-inputmode': 'numeric',
+            }
+        ),
+    )
     # US-2.4: sports (OR) and exact facilities (AND) reuse the US-2.3 lookahead widget.
-    sport = ValidChoices(required=False, choices=Activity.choices, label='Sport', widget=forms.SelectMultiple(attrs={
-        'data-lookahead': '', 'data-autosubmit': '', 'data-placeholder': 'Type a sport',
-        'data-empty': 'No matching sports'}))
-    facility = ValidChoices(required=False, choices=Facility.SPORT_FIELDS, label='Facilities',
-                            widget=forms.SelectMultiple(attrs={
-                                'data-lookahead': '', 'data-autosubmit': '',
-                                'data-placeholder': 'Type a facility, e.g. tennis',
-                                'data-empty': 'No matching facilities'}))
+    sport = ValidChoices(
+        required=False,
+        choices=Activity.choices,
+        label='Sport',
+        widget=forms.SelectMultiple(
+            attrs={
+                'data-lookahead': '',
+                'data-autosubmit': '',
+                'data-placeholder': 'Type a sport',
+                'data-empty': 'No matching sports',
+            }
+        ),
+    )
+    facility = ValidChoices(
+        required=False,
+        choices=Facility.SPORT_FIELDS,
+        label='Facilities',
+        widget=forms.SelectMultiple(
+            attrs={
+                'data-lookahead': '',
+                'data-autosubmit': '',
+                'data-placeholder': 'Type a facility, e.g. tennis',
+                'data-empty': 'No matching facilities',
+            }
+        ),
+    )
     when = forms.ChoiceField(required=False, choices=[('', 'Any date'), ('today', 'Today')], label='Date')
     date_from = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}), label='From')
     date_to = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}), label='To')
     skill = forms.ChoiceField(required=False, choices=[('', 'Any skill level'), *SkillLevel.choices])
-    scope = forms.ChoiceField(required=False, choices=[('all', 'All events'), ('mine', 'All mine'),
-                                                       ('attending', 'Attending'), ('hosting', 'Hosting')])
+    scope = forms.ChoiceField(
+        required=False,
+        choices=[('all', 'All events'), ('mine', 'All mine'), ('attending', 'Attending'), ('hosting', 'Hosting')],
+    )
     events_only = forms.BooleanField(required=False, label='Only parks with events')
     park = forms.IntegerField(required=False, min_value=1)
     view = forms.ChoiceField(required=False, choices=[('map', 'Map'), ('list', 'List')])
@@ -117,8 +160,14 @@ def filter_params(filters):
 
 def zip_code_choices():
     """Distinct five-digit zip codes of active parks, sorted (a park may list several: "10029, 10128")."""
-    return sorted({z.strip() for field in Park.objects.filter(is_retired=False).values_list('zipcode', flat=True)
-                   for z in field.split(',') if re.fullmatch(r'[0-9]{5}', z.strip())})
+    return sorted(
+        {
+            z.strip()
+            for field in Park.objects.filter(is_retired=False).values_list('zipcode', flat=True)
+            for z in field.split(',')
+            if re.fullmatch(r'[0-9]{5}', z.strip())
+        }
+    )
 
 
 def configure_filter_form(form, filters):
@@ -145,8 +194,12 @@ def filter_pills(filters):
         for value in values:
             removal = params.copy()
             removal.setlist(name, [item for item in params.getlist(name) if item != str(value)])
-            pills.append({'label': f'{field.label or name.title()}: {choices.get(value, value)}',
-                          'url': '?' + removal.urlencode()})
+            pills.append(
+                {
+                    'label': f'{field.label or name.title()}: {choices.get(value, value)}',
+                    'url': '?' + removal.urlencode(),
+                }
+            )
     return pills
 
 
@@ -186,9 +239,14 @@ def matching_events(filters, user=None):
     events = events.filter(park_id__in=parks.values('pk'))
     if filters.get('q'):
         q = filters['q']
-        events = events.filter(Q(title__icontains=q) | Q(description__icontains=q)
-                               | Q(meeting_spot__icontains=q) | Q(park__name__icontains=q)
-                               | Q(park__address__icontains=q) | Q(park__location__icontains=q))
+        events = events.filter(
+            Q(title__icontains=q)
+            | Q(description__icontains=q)
+            | Q(meeting_spot__icontains=q)
+            | Q(park__name__icontains=q)
+            | Q(park__address__icontains=q)
+            | Q(park__location__icontains=q)
+        )
     if filters.get('sport'):
         events = events.filter(activity__in=filters['sport'])
     if filters.get('when') == 'today':
@@ -222,16 +280,22 @@ def displayed_parks(filters, user=None):
     # An event-text hit must bring its park into every presentation, even if the
     # park name or facilities don't independently match the search/sport.
     parks = Park.objects.filter(is_retired=False).filter(
-        Q(pk__in=parks.values('pk')) | Q(pk__in=events.values('park_id')))
+        Q(pk__in=parks.values('pk')) | Q(pk__in=events.values('park_id'))
+    )
     counts = events.order_by().values('park_id').annotate(total=Count('pk')).values('total')
-    parks = parks.annotate(event_count=Coalesce(
-        Subquery(counts.filter(park_id=OuterRef('pk')), output_field=IntegerField()), Value(0)))
+    parks = parks.annotate(
+        event_count=Coalesce(Subquery(counts.filter(park_id=OuterRef('pk')), output_field=IntegerField()), Value(0))
+    )
     if filters.get('events_only'):
         parks = parks.filter(event_count__gt=0)
     return parks.order_by('-event_count', 'name', 'pk')
 
 
 def facility_labels(park):
-    keys = {key for facility in park.facilities.all() if facility.feature_status == 'Active'
-            for key in facility.sports.split(',')}
+    keys = {
+        key
+        for facility in park.facilities.all()
+        if facility.feature_status == 'Active'
+        for key in facility.sports.split(',')
+    }
     return [label for key, label in Facility.SPORT_FIELDS if key in keys]

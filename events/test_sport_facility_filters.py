@@ -2,6 +2,7 @@
 
 Every scenario is checked across the Events list tab, the Parks list tab and the map endpoint.
 """
+
 import datetime
 import re
 
@@ -22,16 +23,23 @@ class SportAndFacilityFilterTests(TestCase):
         facility_ids = iter(range(1, 100))
 
         def park(code, name, *facilities):
-            p = Park.objects.create(gispropnum=code, name=name, borough=Borough.BROOKLYN, zipcode='11211',
-                                    latitude='40.700000', longitude='-73.950000')
+            p = Park.objects.create(
+                gispropnum=code,
+                name=name,
+                borough=Borough.BROOKLYN,
+                zipcode='11211',
+                latitude='40.700000',
+                longitude='-73.950000',
+            )
             for sports, status in facilities:
-                Facility.objects.create(system_id=f'{code}-{next(facility_ids)}', park=p, sports=sports,
-                                        feature_status=status)
+                Facility.objects.create(
+                    system_id=f'{code}-{next(facility_ids)}', park=p, sports=sports, feature_status=status
+                )
             return p
 
         active = 'Active'
         cls.hoops = park('B1', 'Hoops Park', ('basketball', active), ('basketball', active))  # two courts
-        cls.wall = park('B2', 'Wall and Hoops Park', ('handball,basketball', active))       # comma list
+        cls.wall = park('B2', 'Wall and Hoops Park', ('handball,basketball', active))  # comma list
         cls.closed = park('B3', 'Closed Courts Park', ('basketball', 'Inactive'))
         cls.regulation = park('B4', 'Regulation Pitch Park', ('regulation_soccer', active))
         cls.small_fields = park('B5', 'Small Fields Park', ('nonregulation_soccer', active))
@@ -43,11 +51,18 @@ class SportAndFacilityFilterTests(TestCase):
         day = timezone.now().astimezone(NYC_TZ).date() + datetime.timedelta(days=3)
 
         def event(title, p, activity):
-            return Event.objects.create(organizer=cls.host, park=p, title=title, activity=activity, date=day,
-                                        time=datetime.time(10), description='Pickup')
+            return Event.objects.create(
+                organizer=cls.host,
+                park=p,
+                title=title,
+                activity=activity,
+                date=day,
+                time=datetime.time(10),
+                description='Pickup',
+            )
 
         event('Hoops run', cls.hoops, Activity.BASKETBALL)
-        event('Lawn hoops', cls.lawn, Activity.BASKETBALL)        # basketball at a park with no court
+        event('Lawn hoops', cls.lawn, Activity.BASKETBALL)  # basketball at a park with no court
         event('Small-sided soccer', cls.small_fields, Activity.SOCCER)
         event('Lawn jog', cls.lawn, Activity.RUNNING)
         event('Doubles', cls.tennis_track, Activity.TENNIS)
@@ -55,8 +70,20 @@ class SportAndFacilityFilterTests(TestCase):
         event('Track yoga', cls.track_only, Activity.YOGA)
         event('Wall ball', cls.wall, Activity.HANDBALL)
 
-        cls.all_parks = {p.name for p in (cls.hoops, cls.wall, cls.closed, cls.regulation, cls.small_fields,
-                                          cls.tennis_track, cls.tennis_only, cls.track_only, cls.lawn)}
+        cls.all_parks = {
+            p.name
+            for p in (
+                cls.hoops,
+                cls.wall,
+                cls.closed,
+                cls.regulation,
+                cls.small_fields,
+                cls.tennis_track,
+                cls.tennis_only,
+                cls.track_only,
+                cls.lawn,
+            )
+        }
 
     def results(self, params):
         """(event titles, park names) from the Events tab, Parks tab and map, asserting all three agree."""
@@ -86,16 +113,21 @@ class SportAndFacilityFilterTests(TestCase):
     def test_multiple_sports_are_ored_for_events_and_facilities(self):
         events, parks = self.results({'sport': [Activity.BASKETBALL, Activity.SOCCER]})
         self.assertEqual(events, {'Hoops run', 'Lawn hoops', 'Small-sided soccer'})
-        self.assertEqual(parks, {'Hoops Park', 'Wall and Hoops Park', 'Open Lawn Park',
-                                 'Regulation Pitch Park', 'Small Fields Park'})
+        self.assertEqual(
+            parks, {'Hoops Park', 'Wall and Hoops Park', 'Open Lawn Park', 'Regulation Pitch Park', 'Small Fields Park'}
+        )
 
     # Scenario: Sport without a facility type
     def test_sport_without_a_facility_type_counts_its_events_and_does_not_narrow_parks(self):
         events, parks = self.results({'sport': Activity.RUNNING})
         self.assertEqual(events, {'Lawn jog'})
         self.assertEqual(parks, self.all_parks)
-        counts = {p.name: p.event_count for p in self.client.get(
-            reverse('event_list'), {'sport': Activity.RUNNING, 'view': 'list', 'tab': 'parks'}).context['parks']}
+        counts = {
+            p.name: p.event_count
+            for p in self.client.get(
+                reverse('event_list'), {'sport': Activity.RUNNING, 'view': 'list', 'tab': 'parks'}
+            ).context['parks']
+        }
         self.assertEqual(counts['Open Lawn Park'], 1)
         self.assertEqual(counts['Hoops Park'], 0)
 
@@ -156,8 +188,10 @@ class SportAndFacilityFilterTests(TestCase):
 
     # Lookahead controls, pills and removal
     def test_page_renders_sport_and_facility_lookaheads_and_pills(self):
-        page = self.client.get(reverse('event_list'), {
-            'view': 'list', 'sport': [Activity.BASKETBALL, Activity.SOCCER], 'facility': 'tennis'})
+        page = self.client.get(
+            reverse('event_list'),
+            {'view': 'list', 'sport': [Activity.BASKETBALL, Activity.SOCCER], 'facility': 'tennis'},
+        )
         html = page.content.decode()
         for name in ('sport', 'facility'):
             with self.subTest(field=name):
@@ -169,8 +203,9 @@ class SportAndFacilityFilterTests(TestCase):
         main_row = html.split('class="explore-filter-options"')[0]
         self.assertIn('name="sport"', main_row)
         self.assertNotIn('name="facility"', main_row)
-        self.assertRegex(html, r'<details class="explore-more-filters" open>',
-                         'More filters stays open while a facility is selected')
+        self.assertRegex(
+            html, r'<details class="explore-more-filters" open>', 'More filters stays open while a facility is selected'
+        )
         self.assertNotIn('Ctrl (Windows)', html)
 
         pills = {pill['label']: pill['url'] for pill in page.context['filter_pills']}

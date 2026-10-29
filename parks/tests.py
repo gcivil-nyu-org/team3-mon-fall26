@@ -153,12 +153,11 @@ class SyncParksCommandTests(TestCase):
 
 class CommaTokenQTests(TestCase):
     def setUp(self):
-        self.single = Park.objects.create(gispropnum='M1', name='Single', borough=Borough.MANHATTAN,
-                                          zipcode='10029')
-        self.pair = Park.objects.create(gispropnum='M2', name='Pair', borough=Borough.MANHATTAN,
-                                        zipcode='10029, 10128')
-        self.triple = Park.objects.create(gispropnum='M3', name='Triple', borough=Borough.MANHATTAN,
-                                          zipcode='10035, 10128, 10029')
+        self.single = Park.objects.create(gispropnum='M1', name='Single', borough=Borough.MANHATTAN, zipcode='10029')
+        self.pair = Park.objects.create(gispropnum='M2', name='Pair', borough=Borough.MANHATTAN, zipcode='10029, 10128')
+        self.triple = Park.objects.create(
+            gispropnum='M3', name='Triple', borough=Borough.MANHATTAN, zipcode='10035, 10128, 10029'
+        )
         self.blank = Park.objects.create(gispropnum='M4', name='Blank', borough=Borough.MANHATTAN)
 
     def names(self, token):

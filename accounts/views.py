@@ -84,8 +84,8 @@ class PublicProfileView(DetailView):
     def get_object(self, queryset=None):
         # Suspended accounts (is_active=False) 404 like unknown ones (#49).
         member = (
-            get_user_model().objects
-            .filter(username__iexact=self.kwargs['username'], is_active=True)
+            get_user_model()
+            .objects.filter(username__iexact=self.kwargs['username'], is_active=True)
             .select_related('profile')
             .first()
         )

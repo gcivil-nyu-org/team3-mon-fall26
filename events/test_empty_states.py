@@ -3,6 +3,7 @@
 Covers each server-rendered state: Events tab, Parks tab, map, events-only and no park data.
 Map request/tile failures run client-side (events/js/explore.test.cjs) and were checked manually.
 """
+
 import datetime
 import re
 from html import unescape
@@ -42,13 +43,31 @@ class EmptyStateTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = get_user_model().objects.create_user('empty-host', 'empty@example.test', password='pw-12345!')
-        cls.park = Park.objects.create(gispropnum='B1', name='McCarren Park', borough=Borough.BROOKLYN,
-                                       zipcode='11211', latitude='40.721400', longitude='-73.951500')
-        cls.quiet = Park.objects.create(gispropnum='Q1', name='Quiet Park', borough=Borough.QUEENS,
-                                        zipcode='11368', latitude='40.740000', longitude='-73.840000')
-        Event.objects.create(organizer=cls.user, park=cls.park, title='Saturday hoops',
-                             activity=Activity.BASKETBALL, description='Pickup', time=datetime.time(10),
-                             date=timezone.now().astimezone(NYC_TZ).date() + datetime.timedelta(days=2))
+        cls.park = Park.objects.create(
+            gispropnum='B1',
+            name='McCarren Park',
+            borough=Borough.BROOKLYN,
+            zipcode='11211',
+            latitude='40.721400',
+            longitude='-73.951500',
+        )
+        cls.quiet = Park.objects.create(
+            gispropnum='Q1',
+            name='Quiet Park',
+            borough=Borough.QUEENS,
+            zipcode='11368',
+            latitude='40.740000',
+            longitude='-73.840000',
+        )
+        Event.objects.create(
+            organizer=cls.user,
+            park=cls.park,
+            title='Saturday hoops',
+            activity=Activity.BASKETBALL,
+            description='Pickup',
+            time=datetime.time(10),
+            date=timezone.now().astimezone(NYC_TZ).date() + datetime.timedelta(days=2),
+        )
 
     def page(self, **params):
         response = self.client.get(reverse('event_list'), params)
@@ -67,8 +86,11 @@ class EmptyStateTests(TestCase):
         _, clear = actions['Clear filters']
         self.assertEqual(clear, {'view': ['list'], 'tab': ['events'], 'scope': ['all']})
         _, parks = actions['Show parks instead']
-        self.assertEqual((parks['view'], parks['tab'], parks['borough'], parks['skill']),
-                         (['list'], ['parks'], ['Q'], ['beginner']), 'Parks tab keeps the filters')
+        self.assertEqual(
+            (parks['view'], parks['tab'], parks['borough'], parks['skill']),
+            (['list'], ['parks'], ['Q'], ['beginner']),
+            'Parks tab keeps the filters',
+        )
         self.assertEqual(actions['Create Event'][0], reverse('event_create'))
         # The Parks tab it points to does have a park to show.
         self.assertEqual(self.client.get(reverse('event_list'), parks).context['park_total'], 1)
@@ -112,8 +134,9 @@ class EmptyStateTests(TestCase):
                 self.assertEqual((query['borough'], query['skill']), (['Q'], ['beginner']))
                 after = self.client.get(reverse('event_list') + url)
                 self.assertEqual(after.context['park_total'], 1, 'Quiet Park is there to host a game')
-        self.assertIn(EVENTS_ONLY, empty_block(self.page(view='map', events_only='1', sport='soccer')[1],
-                                               'events_only_empty'))
+        self.assertIn(
+            EVENTS_ONLY, empty_block(self.page(view='map', events_only='1', sport='soccer')[1], 'events_only_empty')
+        )
 
     def test_events_only_with_matching_events_is_not_empty(self):
         response, _ = self.page(view='list', tab='parks', events_only='1')
