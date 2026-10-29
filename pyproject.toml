@@ -1,0 +1,14 @@
+[tool.black]
+# Match flake8's 120-column limit (.flake8). Quotes are left as written, so adopting Black
+# doesn't rewrite every string in the codebase.
+line-length = 120
+target-version = ["py312"]
+skip-string-normalization = true
+extend-exclude = '''
+(
+    /migrations/
+  | /static/
+  | /staticfiles/
+  | /media/
+)
+'''

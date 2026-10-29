@@ -1,0 +1,11 @@
+<section class="explore-park-preview">
+  <p class="explore-card-kicker">{{ park.get_borough_display }} · {{ park.zipcode|default:'NYC' }}</p>
+  <h2>{{ park.name }}</h2>
+  <p>{{ park.address|default:park.location|default:'Address not specified' }}</p>
+  <p class="explore-amenities">{% for facility in facilities %}<span>{{ facility }}</span>{% empty %}Facility details not specified{% endfor %}</p>
+  <p>☆ Not yet rated</p>
+  <h3>{{ park.event_count }} matching event{{ park.event_count|pluralize }}</h3>
+  <ul class="explore-preview-events">{% for event in preview_events %}<li><a href="{{ event.get_absolute_url }}">{{ event.display_title }}</a><br><small>{{ event.date|date:'D, M j' }} · {{ event.time|time:'g:i A' }}</small></li>{% empty %}<li>No matching events here yet.</li>{% endfor %}</ul>
+  <a class="btn btn--primary" href="{{ events_url }}">See events at this park</a>
+  {% if details_url %}<a class="btn btn--ghost" href="{{ details_url }}">Park details</a>{% endif %}
+</section>

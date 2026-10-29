@@ -1,0 +1,16 @@
+.git/
+.github/
+.venv/
+.ebcli-venv/
+**/__pycache__/
+*.pyc
+.env
+.env.*
+*.sqlite3
+*.sqlite3-*
+staticfiles/
+media/
+dist/
+docs/
+infra/
+.elasticbeanstalk/

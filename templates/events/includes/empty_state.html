@@ -1,0 +1,32 @@
+{% load explore_tags %}{# US-2.5 (#20): shared Explore empty/error states. Usage: {% include "events/includes/empty_state.html" with state="no_events" %} #}
+{# Optional: tag="li" inside lists, map=True for the map overlay, hidden=True for client-revealed states. #}
+<{{ tag|default:'div' }} class="explore-empty explore-empty--{{ state }}{% if state == 'map_error' %} explore-map-error{% endif %}{% if map %} explore-empty--map{% endif %}" data-empty-state="{{ state }}"{% if map %} data-map-empty{% endif %}{% if state == 'map_error' %} data-map-error{% endif %}{% if hidden %} hidden{% endif %} role="status">
+  {% if state == 'no_events' %}
+    <h2>No upcoming events match your filters.</h2>
+    <p>There are still places to play. Explore the parks or start a game.</p>
+    <p class="explore-empty-actions">
+      <a class="btn btn--ghost" href="{{ clear_filters_url }}">Clear filters</a>
+      <a class="btn btn--ghost" href="{% explore_url view='list' tab='parks' %}">Show parks instead</a>
+      <a class="btn btn--primary" href="{% url 'event_create' %}">Create Event</a>
+    </p>
+  {% elif state == 'no_matches' %}
+    <h2>No parks or events match your filters. Try broadening your criteria.</h2>
+    <p class="explore-empty-actions"><a class="btn btn--primary" href="{{ clear_filters_url }}">Clear filters</a></p>
+  {% elif state == 'events_only_empty' %}
+    <h2>No events match. Turn off 'Only parks with events' to see parks where you could host one.</h2>
+    <p class="explore-empty-actions">
+      <a class="btn btn--primary" href="{% explore_url events_only=None %}">Turn off 'Only parks with events'</a>
+      <a class="btn btn--ghost" href="{{ clear_filters_url }}">Clear filters</a>
+    </p>
+  {% elif state == 'no_park_data' %}
+    <h2>Park facility details are temporarily unavailable. Please try again shortly.</h2>
+    <p class="explore-empty-actions"><a class="btn btn--primary" href="">Try again</a></p>
+  {% elif state == 'map_error' %}
+    <h2>We couldn't load the map.</h2>
+    <p>You can still explore the list below.</p>
+    <p class="explore-empty-actions">
+      <button class="btn btn--ghost" type="button" data-map-retry>Try again</button>
+      <a class="btn btn--primary" href="{% explore_url view='list' %}">Switch to List</a>
+    </p>
+  {% endif %}
+</{{ tag|default:'div' }}>

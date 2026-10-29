@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.display_title }} at {{ event.park.name }} · NYC Active{% endblock %}
+
+{% block content %}
+{% include "events/_hub_header.html" with active="explore" back=True %}
+<article class="event-card">
+  <header class="event-card-header">
+    <div class="event-badges">
+      <span class="event-badge event-badge--status">{{ event.get_status_display }}</span>
+      <span class="event-badge">{{ event.get_activity_display }}</span>
+      <span class="event-badge">{{ event.get_skill_level_display }}</span>
+    </div>
+    <h1 class="event-card-title">{{ event.display_title }}</h1>
+    <p class="event-card-subtitle">
+      Hosted by <a href="{% url 'public_profile' username=event.organizer.username %}"><strong>@{{ event.organizer.profile.display_username|default:event.organizer.username }}</strong></a>
+    </p>
+  </header>
+
+  <dl class="event-meta">
+    <div class="event-meta-item">
+      <dt>Park Location</dt>
+      <dd>
+        <strong>{{ event.park.name }}</strong> ({{ event.park.get_borough_display }})
+        {% if event.park.location or event.park.address %}
+          <span class="event-meta-sub">{{ event.park.location|default:event.park.address }}</span>
+        {% endif %}
+      </dd>
+    </div>
+
+    <div class="event-meta-item">
+      <dt>Date &amp; Time</dt>
+      <dd>{{ event.date|date:"l, F j, Y" }} at {{ event.time|time:"g:i A" }}</dd>
+    </div>
+
+    <div class="event-meta-item">
+      <dt>Skill Level</dt>
+      <dd>{{ event.get_skill_level_display }}</dd>
+    </div>
+
+    <div class="event-meta-item">
+      <dt>Maximum Capacity</dt>
+      <dd>
+        {% if event.capacity %}
+          {{ event.capacity }} participant{{ event.capacity|pluralize }}
+        {% else %}
+          Unlimited
+        {% endif %}
+      </dd>
+    </div>
+  </dl>
+
+  <section class="event-description">
+    <h2>About this meetup</h2>
+    <p>{{ event.description|linebreaksbr }}</p>
+  </section>
+</article>
+{% endblock %}

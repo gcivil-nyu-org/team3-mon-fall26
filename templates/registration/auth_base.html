@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block header %}{% endblock %}
+
+{% block main %}
+<main class="auth-page">
+  <aside class="auth-visual">
+    <a class="brand" href="/">{% include "includes/logo.html" with variant="white" %}</a>
+    <figure class="auth-visual-caption">
+      <blockquote class="auth-visual-quote">
+        <p>“I moved here knowing no one. Now I have a soccer crew every Saturday.”</p>
+      </blockquote>
+      <figcaption class="auth-visual-credit">Yixuan Wong · NYU student</figcaption>
+    </figure>
+  </aside>
+
+  <div class="auth-panel">
+    <div class="auth-form-wrap">
+      <a class="brand auth-mobile-brand" href="/">{% include "includes/logo.html" %}</a>
+
+      {% include "includes/messages.html" %}
+
+      <header class="auth-header">
+        <h1 class="auth-title">{% block auth_title %}{% endblock %}</h1>
+        <p class="auth-subtitle">{% block auth_subtitle %}{% endblock %}</p>
+      </header>
+
+      {% include "includes/form_errors.html" %}
+
+      {% block auth_form %}{% endblock %}
+
+      {% block auth_switch_wrapper %}
+        <p class="auth-switch">{% block auth_switch %}{% endblock %}</p>
+      {% endblock %}
+    </div>
+  </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{% static 'js/password-toggle.js' %}" defer></script>
+{% endblock %}

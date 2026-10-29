@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if is_edit %}Profile settings{% else %}Complete your profile{% endif %} · NYC Active{% endblock %}
+{% block body_class %}page--plain{% endblock %}
+
+{% block content %}
+<div class="profile-settings">
+  <header class="profile-settings-header">
+    <div>
+      <h1 class="profile-settings-title">{% if is_edit %}Profile settings{% else %}Complete your profile{% endif %}</h1>
+      <p class="profile-settings-subtitle">
+        {% if is_edit %}
+          Your photo, username, bio, borough, sports and skill level show on your public profile.
+        {% else %}
+          Welcome to NYC Active! These details are optional. You can skip them and add them later.
+        {% endif %}
+      </p>
+    </div>
+    {% if is_edit %}
+      <a class="btn btn--ghost" id="profile-edit-button" href="{% url 'edit_profile' %}?edit=1"{% if editing %} hidden{% endif %}>Edit</a>
+    {% endif %}
+  </header>
+
+  {% include "includes/form_errors.html" %}
+
+  <form method="post" class="auth-form" autocomplete="off" enctype="multipart/form-data">
+    {% csrf_token %}
+    <fieldset class="profile-fieldset" id="profile-fieldset"{% if not editing %} disabled{% endif %}>
+      {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+      {% with saved_avatar=form.initial.avatar %}
+      <div class="profile-photo{% if form.avatar.errors %} field--error{% endif %}">
+        <div class="profile-photo-frame">
+          <div class="profile-photo-preview" id="profile-photo-preview">
+            {% if saved_avatar %}
+              <img src="{{ saved_avatar.url }}" alt="Your profile photo">
+            {% else %}
+              <span class="profile-photo-placeholder" aria-hidden="true"></span>
+            {% endif %}
+          </div>
+          <button type="button" class="profile-photo-remove" id="profile-photo-remove" aria-label="Remove photo" title="Remove photo"{% if not saved_avatar %} hidden{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        {{ form.avatar }}
+        <label class="btn btn--ghost" for="{{ form.avatar.id_for_label }}" id="profile-photo-button">
+          {% if saved_avatar %}Change photo{% else %}Upload photo{% endif %}
+        </label>
+        {% for error in form.avatar.errors %}
+          <p class="field-error">{{ error }}</p>
+        {% endfor %}
+        <p class="field-help">JPG, PNG or WebP, up to 5 MB.</p>
+      </div>
+      {% endwith %}
+
+      <section class="profile-settings-section">
+        <div class="profile-settings-intro">
+          <h2>Account</h2>
+          <p>Your username is public. Your first and last name stay private.</p>
+        </div>
+        <div class="profile-settings-fields">
+          {% include "includes/form_field.html" with field=form.display_username %}
+          <div class="profile-settings-row">
+            {% include "includes/form_field.html" with field=form.first_name %}
+            {% include "includes/form_field.html" with field=form.last_name %}
+          </div>
+        </div>
+      </section>
+
+      <section class="profile-settings-section">
+        <div class="profile-settings-intro">
+          <h2>About you</h2>
+          <p>Helps other players see where and what you like to play.</p>
+        </div>
+        <div class="profile-settings-fields">
+          {% include "includes/form_field.html" with field=form.bio %}
+          {% include "includes/form_field.html" with field=form.home_borough %}
+          <div class="field profile-sports-picker">
+            <label for="profile-sport-summary">Favorite sports</label>
+            <details class="profile-sport-dropdown" id="profile-sport-dropdown">
+              <summary id="profile-sport-summary">Choose sports</summary>
+              <div class="profile-sport-panel">
+                <div class="profile-sport-list" id="profile-sport-list" aria-label="Choose favorite sports">
+                  {% for checkbox in form.favorite_sports %}
+                    <label class="profile-sport-option" data-sport-option>
+                      {{ checkbox.tag }}
+                      <span>{{ checkbox.choice_label }}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+              </div>
+            </details>
+            {% for error in form.favorite_sports.errors %}
+              <p class="field-error">{{ error }}</p>
+            {% endfor %}
+          </div>
+          <div class="profile-sport-add">
+            {% include "includes/form_field.html" with field=form.custom_sport %}
+            <button class="btn btn--ghost" type="button" id="add-custom-sport">Add sport</button>
+          </div>
+          {% include "includes/form_field.html" with field=form.skill_level %}
+        </div>
+      </section>
+    </fieldset>
+
+    <div class="profile-settings-actions" id="profile-settings-actions"{% if not editing %} hidden{% endif %}>
+      {% if is_edit %}
+        <a class="btn btn--ghost" href="{% url 'edit_profile' %}">Cancel</a>
+        <button type="submit" class="btn btn--primary">Save changes</button>
+      {% else %}
+        <a class="btn btn--ghost" href="{% url 'home' %}">Skip for now</a>
+        <button type="submit" class="btn btn--primary">Save profile details</button>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/sport-picker.js' %}" defer></script>
+<script src="{% static 'js/profile-photo.js' %}" defer></script>
+<script src="{% static 'js/profile-settings.js' %}" defer></script>
+{% endblock %}

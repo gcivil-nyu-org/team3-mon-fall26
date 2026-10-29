@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load static explore_tags %}
+{% block title %}Explore Events · NYC Active{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'vendor/leaflet/leaflet.css' %}">
+<link rel="stylesheet" href="{% static 'vendor/markercluster/MarkerCluster.css' %}">
+<link rel="stylesheet" href="{% static 'css/explore-filters.css' %}">
+<link rel="stylesheet" href="{% static 'css/lookahead-select.css' %}">
+<link rel="stylesheet" href="{% static 'css/explore.css' %}">
+{% endblock %}
+{% block content %}
+{% include "events/_hub_header.html" with active="explore" %}
+<section class="explore" aria-labelledby="explore-title" data-explore data-view="{{ filters.view }}">
+  <header class="explore-heading">
+    <div><p class="explore-eyebrow">GET OUT. FIND YOUR PEOPLE.</p>
+      <h1 id="explore-title">Explore events</h1>
+      <p>Find a game to join, or a new place to start one.</p></div>
+  </header>
+  {% include 'events/includes/explore_filters.html' %}
+  <div class="explore-toolbar">
+    <p><strong>{{ event_total }}</strong> {% if filters.scope == 'all' %}upcoming{% else %}matching{% endif %} event{{ event_total|pluralize }} <span aria-hidden="true">·</span>
+      <strong>{{ park_total }}</strong> park{{ park_total|pluralize }}</p>
+    <nav class="explore-switch" aria-label="Results view">
+      <a href="{% explore_url view='map' %}" {% if filters.view == 'map' %}aria-current="page"{% endif %}>Map</a>
+      <a href="{% explore_url view='list' %}" {% if filters.view == 'list' %}aria-current="page"{% endif %}>List</a>
+    </nav>
+  </div>
+  {% if not has_park_data %}
+  {# US-2.5: no active parks at all (e.g. the NYC Open Data sync hasn't run) - no empty map or lists. #}
+  {% include "events/includes/empty_state.html" with state="no_park_data" %}
+  {% else %}
+  {% if filters.view == 'map' %}
+  <div class="explore-map-shell" data-map-shell hidden>
+    <div id="explore-map" role="region" aria-label="NYC parks and matching events" data-map-url="{{ map_url }}"></div>
+    <div class="explore-map-legend"><span class="legend-dot legend-dot--active"></span> Matching events
+      <span class="legend-dot"></span> Parks to explore</div>
+    <p class="explore-map-status" data-map-status role="status">Loading parks…</p>
+    <p class="explore-unmapped" data-unmapped hidden></p>
+    {% if map_empty_state %}{% include "events/includes/empty_state.html" with state=map_empty_state map=True %}{% endif %}
+  </div>
+  {% include "events/includes/empty_state.html" with state="map_error" hidden=True %}
+  <noscript><p class="explore-notice">The interactive map needs JavaScript. Showing List view instead.</p></noscript>
+  {% endif %}
+  <div data-list-fallback>
+    <nav class="explore-tabs" aria-label="List results">
+      <a href="{% explore_url view='list' tab='events' %}" {% if filters.tab == 'events' %}aria-current="page"{% endif %}>Events <span>{{ event_total }}</span></a>
+      <a href="{% explore_url view='list' tab='parks' %}" {% if filters.tab == 'parks' %}aria-current="page"{% endif %}>Parks <span>{{ park_total }}</span></a>
+    </nav>
+    {% if filters.tab == 'parks' %}
+      <div class="explore-park-grid">
+      {% for park in parks %}
+        <article class="explore-park-card">
+          <p class="explore-card-kicker">{{ park.get_borough_display }} · {{ park.zipcode|default:'NYC' }}</p>
+          <h2>{{ park.name }}</h2>
+          <p class="explore-address">{{ park.address|default:park.location|default:'Address not specified' }}</p>
+          <p class="explore-amenities">{% for label in park.facility_labels|slice:':4' %}<span>{{ label }}</span>{% empty %}Facility details not specified{% endfor %}</p>
+          <p class="explore-rating">☆ Not yet rated</p>
+          <footer><span class="explore-event-count">{{ park.event_count }} matching event{{ park.event_count|pluralize }}</span>
+            <a class="explore-quick-view" href="{% explore_url park=park.pk panel='1' %}">Quick view <span aria-hidden="true">↗</span></a>
+            {% if park.details_url %}<a href="{{ park.details_url }}">Park details</a>{% endif %}
+          </footer>
+        </article>
+      {% empty %}
+        {% include "events/includes/empty_state.html" with state=empty_state %}
+      {% endfor %}
+      </div>
+    {% else %}
+      <ul class="discover-list explore-event-list">
+      {% for event in events %}
+        <li class="discover-item"><a class="discover-link" href="{{ event.get_absolute_url }}">
+          <span class="discover-date" aria-hidden="true"><span class="discover-date-dow">{{ event.date|date:'D' }}</span><span class="discover-date-day">{{ event.date|date:'j' }}</span><span class="discover-date-mon">{{ event.date|date:'M' }}</span></span>
+          <span class="discover-body"><span class="event-badges"><span class="event-badge">{{ event.get_activity_display }}</span><span class="event-badge event-badge--outline">{{ event.get_skill_level_display }}</span>{% if event.status != 'scheduled' %}<span class="event-badge explore-status-badge">{{ event.get_status_display }}</span>{% endif %}</span>
+            <span class="discover-name">{{ event.display_title }}</span>
+            <span class="discover-meta"><span>{{ event.date|date:'D, M j' }} · {{ event.time|time:'g:i A' }}</span><span>{{ event.park.name }} · {{ event.park.get_borough_display }}</span></span>
+            {% if event.meeting_spot %}<span class="discover-meta">Meet at {{ event.meeting_spot }}</span>{% endif %}
+          </span>
+          <span class="discover-capacity"><span class="discover-spots">{% if event.is_unlimited %}Unlimited spots{% else %}Up to {{ event.capacity }}{% endif %}</span>{% if not event.is_unlimited %}<span class="discover-spots-sub">participant{{ event.capacity|pluralize }}</span>{% endif %}</span>
+        </a></li>
+      {% empty %}
+        {% include "events/includes/empty_state.html" with state=empty_state tag="li" %}
+      {% endfor %}
+      </ul>
+    {% endif %}
+    {% if is_paginated %}
+    <nav class="discover-pages" aria-label="Pages">
+      {% if page_obj.has_previous %}<a class="btn btn--ghost" href="{% explore_url page=page_obj.previous_page_number %}">Previous</a>{% endif %}
+      <span>Page {{ page_obj.number }} of {{ paginator.num_pages }}</span>
+      {% if page_obj.has_next %}<a class="btn btn--ghost" href="{% explore_url page=page_obj.next_page_number %}">Next</a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+  {% endif %}
+  <dialog class="explore-preview" data-park-dialog aria-label="Park quick view" {% if selected_park %}open{% endif %}>
+    <button class="explore-preview-close" type="button" data-close-preview aria-label="Close park preview">×</button>
+    {% if selected_park %}
+      {% include "events/includes/park_preview.html" with park=selected_park %}
+      <noscript><p><a href="{% explore_url park=None %}">Close park preview</a></p></noscript>
+    {% endif %}
+  </dialog>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="{% static 'vendor/leaflet/leaflet.js' %}" defer></script>
+<script src="{% static 'vendor/markercluster/leaflet.markercluster.js' %}" defer></script>
+<script src="{% static 'js/lookahead-select.js' %}" defer></script>
+<script src="{% static 'js/explore.js' %}" defer></script>
+{% endblock %}

@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}NYC Active · Pickup games and park meetups in New York{% endblock %}
+
+{% block extra_head %}
+  <script>document.documentElement.classList.add('js');</script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,600..900&display=swap">
+  <link rel="stylesheet" href="{% static 'css/landing.css' %}">
+{% endblock %}
+
+{% block header %}
+{% url 'login' as login_url %}{% url 'register' as register_url %}{% url 'logout' as logout_url %}{% url 'event_create' as event_create_url %}{% url 'event_list' as event_list_url %}
+<header class="lp-nav" data-nav>
+  <div class="lp-container lp-nav-inner">
+    <a class="brand" href="/">{% include "includes/logo.html" %}</a>
+    <nav class="lp-nav-links" aria-label="Sections">
+      <a href="{{ event_list_url|default:'#events' }}">Events</a>
+      <a href="#features">Features</a>
+      <a href="#testimonials">Testimonials</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="lp-nav-actions">
+      {% if user.is_authenticated %}
+        <a class="btn btn--primary" href="{{ event_create_url|default:'/events/create/' }}">Create event</a>
+        <a class="btn btn--ghost" href="{% url 'public_profile' username=user.username %}">View profile</a>
+        <form method="post" action="{{ logout_url|default:'/logout/' }}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn--ghost">Log out</button>
+        </form>
+      {% else %}
+        <a class="lp-nav-login" href="{{ login_url|default:'/login/' }}">Log in</a>
+        <a class="btn btn--primary" href="{{ register_url|default:'/register/' }}">Sign up</a>
+      {% endif %}
+    </div>
+  </div>
+</header>
+{% endblock %}
+
+{% block main %}
+{% url 'login' as login_url %}{% url 'register' as register_url %}{% url 'event_list' as event_list_url %}
+<main class="lp">
+
+  <section class="lp-hero">
+    <div class="lp-hero-media">
+      <img src="{% static 'img/hero-wide.jpg' %}" alt="Two friends laughing as they pull a rope during tug-of-war in a park" width="2200" height="1238">
+    </div>
+    <div class="lp-container lp-hero-content">
+      {% include "includes/messages.html" %}
+      <h1 class="lp-display">
+        <span class="lp-line"><span style="--i: 0">Find your</span></span>
+        <span class="lp-line"><span style="--i: 1">next game.</span></span>
+      </h1>
+      <p class="lp-hero-sub">Pickup games and park meetups across all five boroughs. Join one in a tap, or start your own.</p>
+      <div class="lp-hero-ctas">
+        <a class="btn lp-btn-lime lp-btn-lg" href="{{ register_url|default:'/register/' }}">Create a free account</a>
+        <a class="btn lp-btn-outline lp-btn-lg" href="{{ event_list_url|default:'#events' }}">See what's on</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="lp-ticker" aria-label="Sports on NYC Active">
+    <div class="lp-ticker-track">
+      {# Rendered twice so the strip can scroll in a seamless loop; the copy is hidden from screen readers. #}
+      {% for _ in "ab" %}
+        <ul {% if forloop.last %}aria-hidden="true"{% endif %}>
+          <li>Soccer</li><li>Basketball</li><li>Running</li><li>Tennis</li><li>Volleyball</li><li>Ultimate</li><li>Pickleball</li><li>Handball</li><li>Softball</li><li>Cricket</li>
+        </ul>
+      {% endfor %}
+    </div>
+  </div>
+
+  <section class="lp-section" id="events">
+    <div class="lp-container lp-split">
+      <div class="lp-split-copy reveal">
+        <h2 class="lp-display lp-h2">See what's on this weekend.</h2>
+        <p>Browse upcoming events by park, sport and skill level. Every event shows how many spots are left, so you know it's actually happening before you head out.</p>
+      </div>
+      <div class="lp-board reveal" style="--d: 1" aria-hidden="true">
+        <div class="lp-board-head">
+          <span>This weekend</span>
+          <span class="lp-board-live"><i></i>Spots left</span>
+        </div>
+        <div class="lp-board-row" style="--r: 0">
+          <span class="lp-board-when">Sat 10:00</span>
+          <span class="lp-board-what">Pickup soccer<small>Prospect Park · Casual</small></span>
+          <span class="lp-board-spots">4</span>
+        </div>
+        <div class="lp-board-row" style="--r: 1">
+          <span class="lp-board-when">Sat 7:30</span>
+          <span class="lp-board-what">Reservoir run<small>Central Park · All levels</small></span>
+          <span class="lp-board-spots">6</span>
+        </div>
+        <div class="lp-board-row" style="--r: 2">
+          <span class="lp-board-when">Sun 2:00</span>
+          <span class="lp-board-what">Basketball run<small>West 4th St Courts · Competitive</small></span>
+          <span class="lp-board-spots lp-board-spots--low">1</span>
+        </div>
+        <div class="lp-board-row" style="--r: 3">
+          <span class="lp-board-when">Sun 4:00</span>
+          <span class="lp-board-what">Ultimate frisbee<small>Flushing Meadows · Casual</small></span>
+          <span class="lp-board-spots">8</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lp-section lp-section--tint" id="features">
+    <div class="lp-container">
+      <h2 class="lp-display lp-h2 reveal">Built for game day.</h2>
+      <ol class="lp-features">
+        <li class="reveal">
+          <span class="lp-feature-num">01</span>
+          <h3>Explore parks</h3>
+          <p>Search NYC parks on a map and filter by amenities like courts, fields and restrooms.</p>
+        </li>
+        <li class="reveal" style="--d: 1">
+          <span class="lp-feature-num">02</span>
+          <h3>Organize an event</h3>
+          <p>Pick a park and a time, set a capacity, and edit the details whenever plans change.</p>
+        </li>
+        <li class="reveal" style="--d: 2">
+          <span class="lp-feature-num">03</span>
+          <h3>Talk to the group</h3>
+          <p>Each event has its own thread, so organizer updates reach everyone who's going.</p>
+        </li>
+        <li class="reveal" style="--d: 3">
+          <span class="lp-feature-num">04</span>
+          <h3>Review parks</h3>
+          <p>Rate courts and fields, and read what other players think before you go.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="lp-boroughs" aria-label="Boroughs">
+    <div class="lp-container">
+      <p class="lp-boroughs-label reveal">Play in every borough</p>
+      <ul class="lp-boroughs-list lp-display">
+        <li style="--b: 0">Manhattan</li>
+        <li style="--b: 1">Brooklyn</li>
+        <li style="--b: 2">Queens</li>
+        <li style="--b: 3">The Bronx</li>
+        <li style="--b: 4">Staten Island</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lp-testimonials" id="testimonials" aria-labelledby="tm-title">
+    <div class="lp-container">
+      <h2 class="lp-display lp-h2 reveal" id="tm-title">Heard at the park.</h2>
+    </div>
+    <div class="lp-tm-viewport">
+      <div class="lp-tm-track">
+        {# Rendered twice so the cards can scroll in a seamless loop; the copy is hidden from screen readers. #}
+        {% for _ in "ab" %}
+        <ul class="lp-tm-group" {% if forloop.last %}aria-hidden="true"{% endif %}>
+          <li class="lp-tm-card">
+            <p>“I moved here knowing no one. Now I have a soccer crew every Saturday.”</p>
+            <div class="lp-tm-person">
+              <span class="lp-tm-avatar"><img src="{% static 'img/team/yixuan.jpg' %}" alt="" width="44" height="44"></span>
+              <span><b>Yixuan Wong</b>NYU student</span>
+            </div>
+          </li>
+          <li class="lp-tm-card">
+            <p>“Setting a capacity means I stop getting 25 people for a 5v5. Game changer for organizers.”</p>
+            <div class="lp-tm-person">
+              <span class="lp-tm-avatar"><img src="{% static 'img/team/ivan.jpg' %}" alt="" width="44" height="44"></span>
+              <span><b>Ivan Bao</b>NYU student</span>
+            </div>
+          </li>
+          <li class="lp-tm-card">
+            <p>“Friday night I check what still has spots, and that's my Saturday sorted.”</p>
+            <div class="lp-tm-person">
+              <span class="lp-tm-avatar">RK</span>
+              <span><b>Rae Kok</b>NYU student</span>
+            </div>
+          </li>
+          <li class="lp-tm-card">
+            <p>“Our field changed an hour before kickoff. One post in the thread and everyone showed up at the right spot.”</p>
+            <div class="lp-tm-person">
+              <span class="lp-tm-avatar"><img src="{% static 'img/team/yueli.jpg' %}" alt="" width="44" height="44"></span>
+              <span><b>Yueli He</b>NYU student</span>
+            </div>
+          </li>
+          <li class="lp-tm-card">
+            <p>“I found a casual basketball run near campus in five minutes. No group chat required.”</p>
+            <div class="lp-tm-person">
+              <span class="lp-tm-avatar"><img src="{% static 'img/team/derah.jpg' %}" alt="" width="44" height="44"></span>
+              <span><b>Derah Onuorah</b>NYU student</span>
+            </div>
+          </li>
+        </ul>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="lp-section" id="faq">
+    <div class="lp-container lp-faq-grid">
+      <h2 class="lp-display lp-h2 reveal">Questions.</h2>
+      <div class="lp-faq reveal" style="--d: 1">
+        <details>
+          <summary>Is NYC Active free?</summary>
+          <p>Yes. Creating an account, joining events and organizing your own are all free.</p>
+        </details>
+        <details>
+          <summary>Who can organize an event?</summary>
+          <p>Any signed-in member. When you create an event you become its organizer, so you can edit the details, set the capacity and manage who's going.</p>
+        </details>
+        <details>
+          <summary>What happens when an event fills up?</summary>
+          <p>New RSVPs are blocked once an event reaches its capacity. If someone cancels, their spot opens up again.</p>
+        </details>
+        <details>
+          <summary>Where does the park information come from?</summary>
+          <p>Park details come from NYC Open Data, the city's public data platform.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="lp-cta">
+    <div class="lp-container lp-cta-inner reveal">
+      <h2 class="lp-display">Ready to play?</h2>
+      <a class="btn lp-btn-lime lp-btn-lg" href="{{ register_url|default:'/register/' }}">Create a free account</a>
+    </div>
+  </section>
+</main>
+
+<footer class="lp-footer">
+  <div class="lp-container">
+    <div class="lp-footer-top">
+      <div class="lp-footer-brand">
+        <a class="brand" href="/">{% include "includes/logo.html" with variant="white" %}</a>
+        <p>Pickup games and park meetups across all five boroughs.</p>
+      </div>
+      <nav class="lp-footer-cols" aria-label="Footer">
+        <div>
+          <h3>Explore</h3>
+          <a href="{{ event_list_url|default:'#events' }}">Events</a>
+          <a href="#features">Features</a>
+          <a href="#testimonials">Testimonials</a>
+          <a href="#faq">FAQ</a>
+        </div>
+        <div>
+          <h3>Account</h3>
+          {% if user.is_authenticated %}
+            <a href="{% url 'edit_profile' %}">Edit profile</a>
+          {% else %}
+            <a href="{{ register_url|default:'/register/' }}">Sign up</a>
+            <a href="{{ login_url|default:'/login/' }}">Log in</a>
+          {% endif %}
+        </div>
+        <div>
+          <h3>Team 3</h3>
+          <span>Derah Onuorah</span>
+          <span>Ivan Bao</span>
+          <span>Rae Kok</span>
+          <span>Yixuan Wong</span>
+          <span>Yueli He</span>
+        </div>
+      </nav>
+    </div>
+    <div class="lp-footer-bottom">
+      <p>© 2026 NYC Active. Built for NYU Tandon Software Engineering, Fall 2026.</p>
+      <p>Photo by RDNE Stock project on Pexels</p>
+    </div>
+  </div>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{% static 'js/landing.js' %}" defer></script>
+{% endblock %}

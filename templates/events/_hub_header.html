@@ -1,0 +1,9 @@
+{% load explore_tags %}
+{% last_explore_url as results_url %}
+<div class="events-hub">
+  <nav class="events-hub-toggle" aria-label="Events section">
+    <a href="{{ results_url }}" {% if active != 'create' %}aria-current="page"{% endif %}>Explore Events</a>
+    <a href="{% url 'event_create' %}" {% if active == 'create' %}aria-current="page"{% endif %}>Create Event</a>
+  </nav>
+  {% if back %}<a class="events-hub-back" href="{{ results_url }}">&larr; Back to results</a>{% endif %}
+</div>

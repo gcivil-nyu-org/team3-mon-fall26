@@ -1,0 +1,41 @@
+{
+  "CallerReference": "nyc-active-https-v1",
+  "Comment": "NYC Active single-environment HTTPS deployment check",
+  "Enabled": true,
+  "Origins": {
+    "Quantity": 1,
+    "Items": [
+      {
+        "Id": "nyc-active-beanstalk",
+        "DomainName": "REPLACE_WITH_EXISTING_BEANSTALK_HOSTNAME",
+        "CustomOriginConfig": {
+          "HTTPPort": 80,
+          "HTTPSPort": 443,
+          "OriginProtocolPolicy": "https-only",
+          "OriginSslProtocols": {"Quantity": 1, "Items": ["TLSv1.2"]},
+          "OriginReadTimeout": 30,
+          "OriginKeepaliveTimeout": 5
+        }
+      }
+    ]
+  },
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "nyc-active-beanstalk",
+    "ViewerProtocolPolicy": "redirect-to-https",
+    "AllowedMethods": {
+      "Quantity": 7,
+      "Items": ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "POST", "DELETE"],
+      "CachedMethods": {"Quantity": 2, "Items": ["GET", "HEAD"]}
+    },
+    "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+    "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
+    "Compress": true,
+    "TrustedSigners": {"Enabled": false, "Quantity": 0},
+    "TrustedKeyGroups": {"Enabled": false, "Quantity": 0}
+  },
+  "PriceClass": "PriceClass_100",
+  "ViewerCertificate": {"CloudFrontDefaultCertificate": true},
+  "Restrictions": {"GeoRestriction": {"RestrictionType": "none", "Quantity": 0}},
+  "HttpVersion": "http2",
+  "IsIPV6Enabled": true
+}

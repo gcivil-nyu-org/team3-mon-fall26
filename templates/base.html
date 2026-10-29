@@ -1,0 +1,71 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}NYC Active{% endblock %}</title>
+  <link rel="icon" href="{% static 'img/favicon.png' %}" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  <link rel="stylesheet" href="{% static 'css/events-hub.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  {% block header %}
+    {% url 'login' as login_url %}{% url 'register' as register_url %}{% url 'logout' as logout_url %}{% url 'event_create' as event_create_url %}{% url 'event_list' as event_list_url %}
+    <header class="site-header">
+      <a class="brand" href="/">{% include "includes/logo.html" %}</a>
+      <nav class="site-nav" aria-label="Account">
+        {% if event_list_url %}<a class="site-nav-link" href="{{ event_list_url }}">Events</a>{% endif %}
+        {% if user.is_authenticated %}
+          {% url 'public_profile' username=user.username as profile_url %}{% url 'edit_profile' as edit_profile_url %}
+          <a class="btn btn--primary" href="{{ event_create_url|default:'/events/create/' }}">Create event</a>
+          {% with nav_name=user.profile.display_username|default:user.username %}
+          <details class="account-menu" id="account-menu">
+            <summary aria-label="{{ nav_name }} account menu">
+              <span class="nav-avatar">
+                {% if user.profile.avatar %}
+                  <img src="{{ user.profile.avatar.url }}" alt="">
+                {% else %}
+                  <span class="profile-photo-placeholder" aria-hidden="true"></span>
+                {% endif %}
+              </span>
+              <span class="account-menu-text">
+                <span class="account-menu-name">{{ nav_name }}</span>
+                <span class="account-menu-role">{% if user.is_staff %}Admin{% else %}Member{% endif %}</span>
+              </span>
+            </summary>
+            <div class="account-menu-panel">
+              <a class="account-menu-item account-menu-item--profile" href="{{ profile_url }}">View profile</a>
+              <a class="account-menu-item account-menu-item--edit" href="{{ edit_profile_url }}">Profile settings</a>
+              {% if event_list_url %}<a class="account-menu-item" href="{{ event_list_url }}?scope=mine">My Events</a>{% endif %}
+              <hr class="account-menu-divider">
+              <form method="post" action="{{ logout_url|default:'/logout/' }}">
+                {% csrf_token %}
+                <button type="submit" class="account-menu-item account-menu-item--logout">Log out</button>
+              </form>
+            </div>
+          </details>
+          {% endwith %}
+        {% else %}
+          <a class="btn btn--ghost" href="{{ login_url|default:'/login/' }}">Log in</a>
+          <a class="btn btn--primary" href="{{ register_url|default:'/register/' }}">Sign up</a>
+        {% endif %}
+      </nav>
+    </header>
+  {% endblock %}
+
+  {% block main %}
+    <main class="site-main">
+      {% include "includes/messages.html" %}
+      {% block content %}{% endblock %}
+    </main>
+  {% endblock %}
+
+  <script src="{% static 'js/profile-message.js' %}" defer></script>
+  <script src="{% static 'js/account-menu.js' %}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,6 @@
+.events-hub { max-width:1200px; margin:0 auto 24px; }
+.events-hub-toggle { display:inline-flex; flex-wrap:wrap; gap:4px; padding:4px; border:1px solid var(--border); border-radius:12px; background:#fff; }
+.events-hub-toggle a { padding:10px 18px; border-radius:8px; color:var(--muted); text-decoration:none; font-size:.875rem; font-weight:600; }
+.events-hub-toggle [aria-current] { background:var(--green-900); color:#fff; }
+.events-hub-back { display:block; width:fit-content; margin-top:16px; font-size:.8125rem; color:var(--green-700); }
+@media(max-width:600px) { .events-hub-toggle a { padding:9px 14px; } }

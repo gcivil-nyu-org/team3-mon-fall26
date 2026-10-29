@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load explore_tags %}
+
+{% block title %}Create an Event · NYC Active{% endblock %}
+
+{% block content %}
+{% include "events/_hub_header.html" with active="create" back=True %}
+<section class="event-card">
+  <header class="event-card-header">
+    <h1 class="event-card-title">Organize a Park Meetup</h1>
+    <p class="event-card-subtitle">Pick an NYC park, set a schedule and skill level, and publish your game.</p>
+  </header>
+
+  {% include "includes/form_errors.html" %}
+
+  <form method="post" class="event-form" novalidate>
+    {% csrf_token %}
+    {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+
+    {% include "includes/form_field.html" with field=form.park %}
+    {% include "includes/form_field.html" with field=form.activity %}
+
+    <div class="event-form-row">
+      {% include "includes/form_field.html" with field=form.date %}
+      {% include "includes/form_field.html" with field=form.time %}
+    </div>
+
+    <div class="event-form-row">
+      {% include "includes/form_field.html" with field=form.skill_level %}
+      {% include "includes/form_field.html" with field=form.capacity %}
+    </div>
+
+    {% include "includes/form_field.html" with field=form.description %}
+
+    <div class="event-form-actions">
+      <a href="{% last_explore_url %}" class="btn btn--ghost">Cancel</a>
+      <button type="submit" class="btn btn--primary">Publish event</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const input = document.querySelector('input[data-capacity-input="true"]');
+    if (!input) return;
+    const fieldWrap = input.closest('.field');
+    const msg = 'Participant limit must be at least 1 or left blank for unlimited.';
+    input.addEventListener('input', () => {
+      const raw = input.value.trim();
+      const errors = fieldWrap.querySelectorAll('.field-error');
+      if (raw !== '' && (!Number.isInteger(Number(raw)) || Number(raw) < 1)) {
+        fieldWrap.classList.add('field--error');
+        if (errors.length === 0) {
+          const p = document.createElement('p');
+          p.className = 'field-error';
+          p.textContent = msg;
+          input.closest('.input-wrap').after(p);
+        } else {
+          errors[0].textContent = msg;
+        }
+      } else {
+        errors.forEach((el) => el.remove());
+        fieldWrap.classList.remove('field--error');
+      }
+    });
+  })();
+</script>
+{% endblock %}
+

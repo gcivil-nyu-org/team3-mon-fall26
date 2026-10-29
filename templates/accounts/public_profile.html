@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}@{{ display_name }} · NYC Active{% endblock %}
+{% block body_class %}page--plain{% endblock %}
+
+{% block content %}
+<article class="profile-settings">
+  <header class="profile-card-header">
+    <div class="profile-photo-preview">
+      {% if profile.avatar %}
+        <img src="{{ profile.avatar.url }}" alt="@{{ display_name }}'s profile photo">
+      {% else %}
+        <span class="profile-photo-placeholder" aria-hidden="true"></span>
+      {% endif %}
+    </div>
+    <div class="profile-card-heading">
+      <h1 class="profile-settings-title">@{{ display_name }}</h1>
+      <p class="profile-settings-subtitle">Member since {{ member.date_joined|date:"F Y" }}</p>
+    </div>
+    {% if is_own_profile %}
+      <a class="btn btn--ghost" href="{% url 'edit_profile' %}?edit=1">Edit profile</a>
+    {% endif %}
+  </header>
+
+  <section class="profile-settings-section">
+    <div class="profile-settings-intro">
+      <h2>Details</h2>
+    </div>
+    <dl class="profile-details">
+      <div>
+        <dt>Home borough</dt>
+        <dd>
+          {% if profile.home_borough %}
+            {{ profile.get_home_borough_display }}
+          {% else %}
+            <span class="profile-empty">Not set</span>
+          {% endif %}
+        </dd>
+      </div>
+      <div>
+        <dt>Skill level</dt>
+        <dd>
+          {% if profile.skill_level %}
+            {{ profile.get_skill_level_display }}
+          {% else %}
+            <span class="profile-empty">Not set</span>
+          {% endif %}
+        </dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="profile-settings-section">
+    <div class="profile-settings-intro">
+      <h2>Bio</h2>
+    </div>
+    {% if profile.bio %}
+      <p class="profile-bio">{{ profile.bio|linebreaksbr }}</p>
+    {% else %}
+      <p class="profile-bio profile-empty">No bio yet</p>
+    {% endif %}
+  </section>
+
+  <section class="profile-settings-section">
+    <div class="profile-settings-intro">
+      <h2>Favorite sports</h2>
+    </div>
+    {% if profile.favorite_sports %}
+      <ul class="profile-tags">
+        {% for sport in profile.favorite_sports %}
+          <li class="event-badge">{{ sport }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="profile-bio profile-empty">No sports added yet</p>
+    {% endif %}
+  </section>
+</article>
+{% endblock %}
