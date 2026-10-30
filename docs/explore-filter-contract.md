@@ -155,3 +155,29 @@ validation, multi-value state and pagination, personal-scope isolation, NY date
 boundaries, whole-token zip/facility matching, retirement, unknown park handling,
 and constant query count. Existing feed tests now assert that the retired
 `include_past` parameter cannot expose past events.
+
+## Park panel (US-2.9 / #79)
+
+The existing `explore_park_preview` endpoint and `park_preview_context()` now
+render the full panel. It uses the same validated filters, active facilities,
+and `events/_park_events.html` as the park page from #94/#95. Only scheduled,
+upcoming events are shown in the panel, including in personal scopes; no
+cancelled or removed event is exposed as an upcoming game. Availability uses
+`with_confirmed_players()` and the park-page availability helper. Active RSVP
+membership is an EXISTS annotation, so badges do not add per-event queries.
+
+The desktop dialog is a side drawer; below 600px it becomes a bottom sheet.
+Map clicks and enhanced Quick view links use `park=<id>&panel=1`. The map focuses
+on the selected park, and the removable park pill displays its name. Closing the
+panel removes only the park/panel state. The existing hub session restores the
+open panel and repeated filters after visiting event or park pages or login.
+Without JavaScript, Quick view links directly to the full park page.
+
+The panel passes `?park=<id>` to Create Event; form pre-selection remains owned
+by #81. Ratings show "Not yet rated" until #42 is implemented. This feature does
+not change event creation, joining, database models, or deployment settings.
+
+`events/test_park_panel.py` covers panel content, membership, availability and
+badges, URL/session restoration, missing data, escaping, invalid parks and a
+three-query budget that stays constant as organizers and RSVP rows increase.
+The JavaScript controller tests verify selected-park zoom and progressive links.

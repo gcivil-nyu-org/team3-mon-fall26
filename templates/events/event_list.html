@@ -7,10 +7,11 @@
 <link rel="stylesheet" href="{% static 'css/explore-filters.css' %}">
 <link rel="stylesheet" href="{% static 'css/lookahead-select.css' %}">
 <link rel="stylesheet" href="{% static 'css/explore.css' %}">
+<link rel="stylesheet" href="{% static 'css/park-detail.css' %}">
 {% endblock %}
 {% block content %}
 {% include "events/_hub_header.html" with active="explore" %}
-<section class="explore" aria-labelledby="explore-title" data-explore data-view="{{ filters.view }}">
+<section class="explore" aria-labelledby="explore-title" data-explore data-view="{{ filters.view }}" data-park="{{ selected_park.pk|default:'' }}">
   <header class="explore-heading">
     <div><p class="explore-eyebrow">GET OUT. FIND YOUR PEOPLE.</p>
       <h1 id="explore-title">Explore events</h1>
@@ -56,7 +57,7 @@
           <p class="explore-amenities">{% for label in park.facility_labels|slice:':4' %}<span>{{ label }}</span>{% empty %}Facility details not specified{% endfor %}</p>
           <p class="explore-rating">☆ Not yet rated</p>
           <footer><span class="explore-event-count">{{ park.event_count }} matching event{{ park.event_count|pluralize }}</span>
-            <a class="explore-quick-view" href="{% explore_url park=park.pk panel='1' %}">Quick view <span aria-hidden="true">↗</span></a>
+            <a class="explore-quick-view" href="{{ park.details_url }}" data-park-quick-view data-panel-url="{% explore_url park=park.pk panel='1' %}">Quick view <span aria-hidden="true">↗</span></a>
             {% if park.details_url %}<a href="{{ park.details_url }}">Park details</a>{% endif %}
           </footer>
         </article>
@@ -94,7 +95,6 @@
     <button class="explore-preview-close" type="button" data-close-preview aria-label="Close park preview">×</button>
     {% if selected_park %}
       {% include "events/includes/park_preview.html" with park=selected_park %}
-      <noscript><p><a href="{% explore_url park=None %}">Close park preview</a></p></noscript>
     {% endif %}
   </dialog>
 </section>
