@@ -4,7 +4,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.db.models import Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
-from django.urls import NoReverseMatch, reverse
+from django.urls import reverse
 from django.views.decorators.http import require_GET
 from django.views.generic import CreateView, DetailView, ListView
 
@@ -57,11 +57,7 @@ def explore_empty_state(filters, event_total, park_total, has_park_data):
 
 
 def park_details_url(park):
-    # #21 supplies the full park page. Never render a broken link before it lands.
-    try:
-        return reverse('park_detail', kwargs={'pk': park.pk})
-    except NoReverseMatch:
-        return None
+    return reverse('park_detail', kwargs={'pk': park.pk})
 
 
 class EventListView(ListView):

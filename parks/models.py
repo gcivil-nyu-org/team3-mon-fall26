@@ -91,6 +91,27 @@ class Facility(models.Model):
         ('netball', 'Netball'),
     )
 
+    # NYC Open Data primary_sport codes, for grouping facilities on the park page (US-2.6).
+    PRIMARY_SPORT_LABELS = {
+        'BKB': 'Basketball',
+        'BOC': 'Bocce',
+        'BSB': 'Baseball',
+        'CRK': 'Cricket',
+        'FFB': 'Flag Football',
+        'FTB': 'Football',
+        'HDB': 'Handball',
+        'HKY': 'Hockey',
+        'MPPA': 'Multi-Purpose Play Area',
+        'NTB': 'Netball',
+        'PKB': 'Pickleball',
+        'RBY': 'Rugby',
+        'SCR': 'Soccer',
+        'SFB': 'Softball',
+        'TNS': 'Tennis',
+        'TRK': 'Track & Field',
+        'VLB': 'Volleyball',
+    }
+
     system_id = models.CharField(
         max_length=64,
         unique=True,
@@ -126,6 +147,9 @@ class Facility(models.Model):
 
     def sport_list(self):
         return [s for s in self.sports.split(',') if s]
+
+    def primary_sport_label(self):
+        return self.PRIMARY_SPORT_LABELS.get(self.primary_sport, 'Other')
 
     def __str__(self):
         sport = self.primary_sport or 'Facility'

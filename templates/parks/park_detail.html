@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ park.name }} · NYC Active{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/park-detail.css' %}">{% endblock %}
+
+{% block content %}
+{% include "events/_hub_header.html" with active="explore" back=True %}
+<article class="park-detail">
+  <header class="park-detail-header">
+    <p class="park-detail-kicker">{{ park.get_borough_display }}{% if park.park_type %} · {{ park.park_type }}{% endif %}</p>
+    <h1>{{ park.name }}</h1>
+    <p class="park-detail-actions">
+      <a class="btn btn--primary" href="{% url 'event_create' %}?park={{ park.pk }}">Organize an event here</a>
+      <a class="btn btn--ghost" href="{% url 'event_list' %}?view=map&amp;park={{ park.pk }}&amp;panel=1">Show on map</a>
+    </p>
+  </header>
+
+  <dl class="event-meta">
+    <div class="event-meta-item">
+      <dt>Address</dt>
+      <dd>
+        {% if park.address or park.location %}
+          {{ park.address|default:park.location }}
+          {% if park.address and park.location %}<span class="event-meta-sub">{{ park.location }}</span>{% endif %}
+        {% else %}
+          Address not specified
+        {% endif %}
+      </dd>
+    </div>
+    <div class="event-meta-item">
+      <dt>Borough</dt>
+      <dd>{{ park.get_borough_display }}{% if park.zipcode %}<span class="event-meta-sub">{{ park.zipcode }}</span>{% endif %}</dd>
+    </div>
+    <div class="event-meta-item">
+      <dt>Size</dt>
+      <dd>{% if park.acres %}{{ park.acres|floatformat:"-2" }} acre{{ park.acres|pluralize }}{% else %}Not specified{% endif %}</dd>
+    </div>
+  </dl>
+
+  <section class="park-detail-section" aria-labelledby="park-facilities-title">
+    <h2 id="park-facilities-title">Facilities</h2>
+    {% if facility_groups %}
+      <ul class="park-facilities">
+        {% for group in facility_groups %}
+          <li class="park-facility">
+            <span class="park-facility-count">{{ group.count }}</span>
+            <span class="park-facility-sport">{{ group.sport }}</span>
+            <span class="park-facility-notes">{{ group.lighted }} lit · {{ group.accessible }} accessible</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="park-detail-empty">Facility details not specified</p>
+    {% endif %}
+  </section>
+
+  <section class="park-detail-section" aria-labelledby="park-events-title">
+    <h2 id="park-events-title">Upcoming events</h2>
+    {% include "events/_park_events.html" %}
+  </section>
+
+  <section class="park-detail-section" aria-labelledby="park-reviews-title">
+    <h2 id="park-reviews-title">Reviews</h2>
+    <p class="park-detail-empty">☆ Not yet rated</p>
+  </section>
+</article>
+{% endblock %}
