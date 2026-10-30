@@ -27,6 +27,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('accounts.urls')),
     path('', include('events.urls')),
+    path('', include('parks.urls')),
 ]
 
 # Serves uploaded profile photos locally; static() adds nothing when DEBUG is off.

@@ -1,0 +1,23 @@
+{# US-3.2 (#23): a park's upcoming events. Needs `park` and `park_events` (from parks.views.with_availability). #}
+<ul class="discover-list park-events">
+{% for event in park_events %}
+  <li class="discover-item"><a class="discover-link" href="{{ event.get_absolute_url }}">
+    <span class="discover-date" aria-hidden="true"><span class="discover-date-dow">{{ event.date|date:'D' }}</span><span class="discover-date-day">{{ event.date|date:'j' }}</span><span class="discover-date-mon">{{ event.date|date:'M' }}</span></span>
+    <span class="discover-body"><span class="event-badges"><span class="event-badge">{{ event.get_activity_display }}</span><span class="event-badge event-badge--outline">{{ event.get_skill_level_display }}</span></span>
+      <span class="discover-name">{{ event.display_title }}</span>
+      <span class="discover-meta"><span>{{ event.date|date:'D, M j' }} · {{ event.time|time:'g:i A' }}</span><span>Hosted by @{{ event.organizer.profile.display_username|default:event.organizer.username }}</span></span>
+      <span class="discover-meta">{% if event.meeting_spot %}Meet at {{ event.meeting_spot }}{% else %}Meeting spot not specified{% endif %}</span>
+    </span>
+    <span class="discover-capacity">
+      {% if event.spots_remaining is None %}<span class="discover-spots">Unlimited spots</span>
+      {% elif event.spots_remaining %}<span class="discover-spots">{{ event.spots_remaining }} spot{{ event.spots_remaining|pluralize }} remaining</span><span class="discover-spots-sub">of {{ event.capacity }}</span>
+      {% else %}<span class="discover-spots discover-spots--ended">Full</span><span class="discover-spots-sub">of {{ event.capacity }}</span>{% endif %}
+    </span>
+  </a></li>
+{% empty %}
+  <li class="discover-empty">
+    <p>No upcoming events here yet. Be the first to host one!</p>
+    <a class="btn btn--primary" href="{% url 'event_create' %}?park={{ park.pk }}">Organize an event here</a>
+  </li>
+{% endfor %}
+</ul>
