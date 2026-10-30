@@ -1,11 +1,26 @@
 <section class="explore-park-preview">
   <p class="explore-card-kicker">{{ park.get_borough_display }} · {{ park.zipcode|default:'NYC' }}</p>
-  <h2>{{ park.name }}</h2>
+  <h2 id="park-panel-title">{{ park.name }}</h2>
   <p>{{ park.address|default:park.location|default:'Address not specified' }}</p>
-  <p class="explore-amenities">{% for facility in facilities %}<span>{{ facility }}</span>{% empty %}Facility details not specified{% endfor %}</p>
-  <p>☆ Not yet rated</p>
-  <h3>{{ park.event_count }} matching event{{ park.event_count|pluralize }}</h3>
-  <ul class="explore-preview-events">{% for event in preview_events %}<li><a href="{{ event.get_absolute_url }}">{{ event.display_title }}</a><br><small>{{ event.date|date:'D, M j' }} · {{ event.time|time:'g:i A' }}</small></li>{% empty %}<li>No matching events here yet.</li>{% endfor %}</ul>
-  <a class="btn btn--primary" href="{{ events_url }}">See events at this park</a>
-  {% if details_url %}<a class="btn btn--ghost" href="{{ details_url }}">Park details</a>{% endif %}
+  <p class="explore-rating"><span aria-hidden="true">☆</span> Not yet rated</p>
+  <section class="park-panel-section" aria-label="Park facilities">
+    <h3>Facilities</h3>
+    <ul class="park-facilities">
+    {% for group in facility_groups %}
+      <li class="park-facility"><span class="park-facility-count">{{ group.count }}</span>
+        <span class="park-facility-sport">{{ group.sport }}</span>
+        <span class="park-facility-notes">{{ group.lighted }} lit · {{ group.accessible }} accessible</span></li>
+    {% empty %}<li class="park-panel-muted">Facility details not specified</li>{% endfor %}
+    </ul>
+  </section>
+  <section class="park-panel-section" aria-label="Matching upcoming events">
+    <h3>{{ panel_event_total }} matching event{{ panel_event_total|pluralize }}</h3>
+    {% include "events/_park_events.html" %}
+    {% if panel_event_total %}<a class="park-panel-all-events" href="{{ events_url }}">See all {{ panel_event_total }} event{{ panel_event_total|pluralize }} here</a>{% endif %}
+  </section>
+  <footer class="park-panel-actions">
+    <a class="btn btn--primary" href="{{ organize_url }}">Organize an event here</a>
+    <a class="btn btn--ghost" href="{{ details_url }}">Full park details</a>
+  </footer>
+  <a class="park-panel-close-link" href="{{ close_panel_url }}">Close park preview</a>
 </section>

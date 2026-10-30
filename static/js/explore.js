@@ -18,6 +18,10 @@
     if (!search.value.trim()) filtersForm.requestSubmit();
   });
   const dialog = root.querySelector('[data-park-dialog]');
+  // Keep real park-page links when scripts are disabled; enhance them to the shareable panel URL.
+  root.querySelectorAll('[data-park-quick-view]').forEach((link) => {
+    link.href = link.dataset.panelUrl;
+  });
   // A selected park is ordinary URL state. Navigation persists it server-side,
   // so sharing, refresh, no-JS and returning from another hub page agree.
   function parkURL(id) {
@@ -99,7 +103,9 @@
         return marker;
       });
       group.addLayers(markers);
-      if (markers.length) map.fitBounds(group.getBounds(), {padding:[36,36], maxZoom:15});
+      const selectedPark = data.parks.find((park) => String(park.id) === root.dataset.park);
+      if (selectedPark) map.setView([selectedPark.lat, selectedPark.lng], 15);
+      else if (markers.length) map.fitBounds(group.getBounds(), {padding:[36,36], maxZoom:15});
       // US-2.5: zero pins shows the server-rendered empty state (pins already cleared above).
       // Parks may still match but lack coordinates; the unmapped notice below links to List view.
       const emptyState = root.querySelector('[data-map-empty]');

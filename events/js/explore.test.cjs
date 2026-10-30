@@ -39,13 +39,16 @@ async function controller({data, reject = false, leaflet = true, selected = fals
       '[data-map-status]', '[data-unmapped]', '[data-map-retry]']) delete nodes[key];
   }
   // Like the real DOM, a missing element is null.
-  const root = {dataset: {view: 'map'}, querySelector: key => nodes[key] ?? null};
+  const quickView = {href: '/parks/7/', dataset: {panelUrl: '?view=list&tab=parks&park=7&panel=1'}};
+  const root = {dataset: {view: 'map', park: selected ? '7' : ''}, querySelector: key => nodes[key] ?? null,
+    querySelectorAll: key => key === '[data-park-quick-view]' ? [quickView] : []};
   const navigations = [];
   const markers = [];
   let clusterOptions;
   let fits = 0;
   let tileError;
-  const map = {setView() {return this;}, fitBounds() {fits++;}, eachLayer() {}};
+  const map = {setView(position, zoom) {state.mapView = {position, zoom}; return this;},
+    fitBounds() {fits++;}, eachLayer() {}};
   const group = {addTo() {return this;}, clearLayers() {state.clears++;}, addLayers() {}, getBounds() {return {};}};
   const L = {
     map: () => { state.maps++; return map; },
@@ -72,7 +75,7 @@ async function controller({data, reject = false, leaflet = true, selected = fals
     }});
   await new Promise(resolve => setImmediate(resolve));
   return {nodes, markers, clusterOptions, fits, navigations, checkbox, dialog, autosubmitFields,
-    submits: () => submits, tileError, state, fitCount: () => fits};
+    submits: () => submits, tileError, state, fitCount: () => fits, quickView};
 }
 
 const parks = [
@@ -107,6 +110,18 @@ test('pin selection and closing preserve repeated filters in shareable URL state
   assert.equal(ui.navigations[1].searchParams.has('park'), false);
   assert.equal(ui.navigations[1].searchParams.has('panel'), false);
   assert.deepEqual(ui.navigations[1].searchParams.getAll('zip'), ['11211', '11222']);
+});
+
+test('an open park panel centers the map on that park at street-level zoom', async () => {
+  const ui = await controller({data: {parks, unmapped_event_count: 0}, selected: true});
+  assert.deepEqual(Array.from(ui.state.mapView.position), [40.7, -73.9]);
+  assert.equal(ui.state.mapView.zoom, 15);
+  assert.equal(ui.fits, 0, 'the selected park is not zoomed out to the full result set');
+});
+
+test('scripts enhance the park-page fallback to a shareable panel link', async () => {
+  const ui = await controller();
+  assert.equal(ui.quickView.href, '?view=list&tab=parks&park=7&panel=1');
 });
 
 test('unmapped notice links to Events list without losing filters', async () => {

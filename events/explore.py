@@ -140,6 +140,9 @@ def filter_pills(filters):
         values = values if isinstance(values, list) else [values]
         field = ExploreFilterForm.base_fields[name]
         choices = dict(getattr(field, 'choices', []))
+        if name == 'park':
+            choices[values[0]] = Park.objects.filter(pk=values[0], is_retired=False).values_list(
+                'name', flat=True).first()
         for value in values:
             removal = params.copy()
             removal.setlist(name, [item for item in params.getlist(name) if item != str(value)])
