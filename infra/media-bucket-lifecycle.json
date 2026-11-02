@@ -1,0 +1,11 @@
+{
+  "Rules": [
+    {
+      "ID": "CleanUpAbandonedAndReplacedMedia",
+      "Status": "Enabled",
+      "Filter": {"Prefix": "media/"},
+      "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 1},
+      "NoncurrentVersionExpiration": {"NoncurrentDays": 1}
+    }
+  ]
+}

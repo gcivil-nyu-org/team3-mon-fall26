@@ -1,0 +1,17 @@
+asgiref==3.12.1
+Django==5.2.18
+sqlparse==0.6.0
+gunicorn==26.2.0
+Pillow==12.3.0
+psycopg[binary]==3.3.6
+typing_extensions==4.16.0
+tzdata==2026.5
+whitenoise==6.12.0
+boto3==1.43.114
+botocore==1.43.114
+django-storages[s3]==1.14.6
+jmespath==1.1.0
+python-dateutil==2.9.0.post0
+s3transfer==0.19.3
+six==1.17.0
+urllib3==2.8.0

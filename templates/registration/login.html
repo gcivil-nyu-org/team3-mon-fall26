@@ -1,0 +1,19 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Log in · NYC Active{% endblock %}
+{% block auth_title %}Welcome back{% endblock %}
+{% block auth_subtitle %}Log in with your email to find your next game.{% endblock %}
+
+{% block auth_form %}
+<form method="post" class="auth-form" autocomplete="off">
+  {% csrf_token %}
+  {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+  {% for field in form.visible_fields %}
+    {% include "includes/form_field.html" %}
+  {% endfor %}
+  {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+  <button type="submit" class="btn btn--primary btn--block">Log in</button>
+</form>
+{% endblock %}
+
+{% block auth_switch %}New to NYC Active? <a href="{% url 'register' %}">Create account</a>{% endblock %}

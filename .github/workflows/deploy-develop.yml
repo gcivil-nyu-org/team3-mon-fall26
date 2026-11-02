@@ -1,0 +1,75 @@
+name: Test and deploy develop
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: nyc-active-tests-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install application dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Check dependencies and Django configuration
+        run: |
+          python -m pip check
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Test the application and deployment safeguards
+        run: |
+          python manage.py test
+          python -m unittest discover -s infra -p 'test_*.py'
+      - name: Test map and filter interactions (Node built-in runner, no npm dependencies)
+        run: node --test events/js/explore.test.cjs events/js/lookahead-select.test.cjs
+      - name: Check deployment hook syntax
+        run: |
+          find .platform/hooks .platform/confighooks -name '*.sh' -exec bash -n {} \;
+
+  deploy:
+    needs: test
+    if: github.repository == 'gcivil-nyu-org/team3-mon-fall26' && github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: nyc-active-existing-test-environment
+      cancel-in-progress: false
+    env:
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install deployment client
+        run: python -m pip install -r infra/requirements-deploy.txt
+      - name: Obtain short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          aws-region: us-east-1
+          role-to-assume: arn:aws:iam::287872994760:role/nyc-active-github-deploy
+          role-session-name: github-${{ github.run_id }}
+          role-duration-seconds: 1800
+          allowed-account-ids: '287872994760'
+      - name: Deploy to the existing team environment and verify HTTPS
+        run: python infra/deploy_ci.py

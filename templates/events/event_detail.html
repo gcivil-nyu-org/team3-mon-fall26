@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.display_title }} at {{ event.park.name }} · NYC Active{% endblock %}
+
+{% block content %}
+{% include "events/_hub_header.html" with active="explore" back=True %}
+<article class="event-card">
+  <header class="event-card-header">
+    <div class="event-badges">
+      <span class="event-badge event-badge--status">{{ event.get_status_display }}</span>
+      <span class="event-badge">{{ event.get_activity_display }}</span>
+      <span class="event-badge">{{ event.get_skill_level_display }}</span>
+    </div>
+    <h1 class="event-card-title">{{ event.display_title }}</h1>
+    <p class="event-card-subtitle">
+      Hosted by <a href="{% url 'public_profile' username=event.organizer.username %}"><strong>@{{ event.organizer.profile.display_username|default:event.organizer.username }}</strong></a>
+    </p>
+    {% if event.status == 'cancelled' %}<p class="event-cancelled-notice" role="status">Cancelled by the host</p>{% endif %}
+  </header>
+
+  <dl class="event-meta">
+    <div class="event-meta-item">
+      <dt>Park Location</dt>
+      <dd>
+        <strong>{{ event.park.name }}</strong> ({{ event.park.get_borough_display }})
+        {% if event.park.location or event.park.address %}
+          <span class="event-meta-sub">{{ event.park.location|default:event.park.address }}</span>
+        {% endif %}
+      </dd>
+    </div>
+
+    <div class="event-meta-item">
+      <dt>Meeting Spot</dt>
+      <dd>{{ event.meeting_spot|default:"Meeting spot not specified" }}</dd>
+    </div>
+
+    <div class="event-meta-item">
+      <dt>Date &amp; Time</dt>
+      <dd>{{ event.date|date:"l, F j, Y" }} at {{ event.time|time:"g:i A" }}</dd>
+    </div>
+
+    <div class="event-meta-item">
+      <dt>Skill Level</dt>
+      <dd>{{ event.get_skill_level_display }}</dd>
+    </div>
+
+    <div class="event-meta-item">
+      <dt>Maximum Capacity</dt>
+      <dd>
+        {% if event.capacity %}
+          {{ event.capacity }} participant{{ event.capacity|pluralize }}
+        {% else %}
+          Unlimited
+        {% endif %}
+      </dd>
+    </div>
+  </dl>
+
+  <section class="event-description">
+    <h2>About this meetup</h2>
+    <p>{{ event.description|linebreaksbr }}</p>
+  </section>
+
+  <section class="event-attendance" aria-labelledby="event-attendance-title">
+    <h2 id="event-attendance-title">Going ({{ confirmed_players }})</h2>
+    {% if event.host_is_playing %}
+      <p>Organizer · @{{ event.organizer.username }}</p>
+    {% endif %}
+    <ul>
+      {% for rsvp in active_rsvps %}
+        <li>@{{ rsvp.user.username }}{% if user.is_authenticated and rsvp.user_id == user.id %} <span>(you)</span>{% endif %}</li>
+      {% empty %}
+        {% if not event.host_is_playing %}<li>No one has RSVP’d yet.</li>{% endif %}
+      {% endfor %}
+    </ul>
+    <p>
+      {% if event.capacity %}
+        {% if spots_remaining %}{{ spots_remaining }} spot{{ spots_remaining|pluralize }} remaining{% else %}Full{% endif %}
+      {% else %}
+        Unlimited spots
+      {% endif %}
+    </p>
+
+    {% if user.is_authenticated and user == event.organizer %}
+      {# Organizers are counted as the host when playing, never as an RSVP. #}
+    {% elif user_rsvp and user_rsvp.status == 'active' and not event_block_reason %}
+      <form method="post" action="{% url 'event_rsvp_cancel' event.pk %}" onsubmit="return confirm('Cancel your RSVP?');">
+        {% csrf_token %}
+        <button class="btn btn--primary" type="submit">Attending · Cancel RSVP</button>
+      </form>
+    {% elif user_rsvp and user_rsvp.status == 'active' %}
+      <button class="btn btn--primary" type="button" disabled>Attending</button>
+    {% elif can_rsvp %}
+      <form method="post" action="{% url 'event_rsvp' event.pk %}">
+        {% csrf_token %}
+        <button class="btn btn--primary" type="submit">Join event</button>
+      </form>
+    {% elif user.is_authenticated and user != event.organizer and rsvp_block_reason %}
+      <button class="btn btn--primary" type="button" disabled>Join event</button>
+    {% elif not user.is_authenticated and not rsvp_block_reason %}
+      <a href="{% url 'login' %}?next={{ event.get_absolute_url|urlencode }}">Sign in to RSVP</a>
+    {% endif %}
+    {% if event_block_reason %}
+      <p role="status">{{ event_block_reason }}</p>
+    {% elif show_rsvp_block_reason %}
+      <p role="status">{{ rsvp_block_reason }}</p>
+    {% endif %}
+  </section>
+
+  {% if can_cancel_event %}
+    <section class="event-manage" aria-label="Manage this event">
+      <form method="post" action="{% url 'event_cancel' event.pk %}" onsubmit="return confirm('Cancel this event? Players will see that it is off, and this cannot be undone.');">
+        {% csrf_token %}
+        <button class="btn btn--ghost" type="submit">Cancel Event</button>
+      </form>
+    </section>
+  {% endif %}
+</article>
+{% endblock %}

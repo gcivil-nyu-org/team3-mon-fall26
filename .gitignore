@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+db.sqlite3
+staticfiles/
+.env
+.elasticbeanstalk/
+dist/
+media/
+.env.*
+!.env.example
+*.sqlite3-*
+.DS_Store
+
+# Coverage output (Travis/Coveralls)
+.coverage
+.coverage.*
+htmlcov/

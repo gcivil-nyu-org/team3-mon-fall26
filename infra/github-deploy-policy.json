@@ -1,0 +1,128 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadTeamReleaseState",
+      "Effect": "Allow",
+      "Action": ["elasticbeanstalk:DescribeEnvironments", "elasticbeanstalk:DescribeEvents"],
+      "Resource": "arn:aws:elasticbeanstalk:us-east-1:287872994760:environment/nyc-active/nyc-active-demo-287872994760"
+    },
+    {
+      "Sid": "ReadTeamVersions",
+      "Effect": "Allow",
+      "Action": "elasticbeanstalk:DescribeApplicationVersions",
+      "Resource": "arn:aws:elasticbeanstalk:us-east-1:287872994760:applicationversion/nyc-active/*"
+    },
+    {
+      "Sid": "CreateOnlyWorkflowVersions",
+      "Effect": "Allow",
+      "Action": "elasticbeanstalk:CreateApplicationVersion",
+      "Resource": [
+        "arn:aws:elasticbeanstalk:us-east-1:287872994760:application/nyc-active",
+        "arn:aws:elasticbeanstalk:us-east-1:287872994760:applicationversion/nyc-active/gha-*"
+      ]
+    },
+    {
+      "Sid": "ReleaseOrRollbackOnlyTheTeamEnvironment",
+      "Effect": "Allow",
+      "Action": "elasticbeanstalk:UpdateEnvironment",
+      "Resource": "arn:aws:elasticbeanstalk:us-east-1:287872994760:environment/nyc-active/nyc-active-demo-287872994760",
+      "Condition": {
+        "StringEquals": {"elasticbeanstalk:InApplication": "arn:aws:elasticbeanstalk:us-east-1:287872994760:application/nyc-active"},
+        "ArnLike": {"elasticbeanstalk:FromApplicationVersion": "arn:aws:elasticbeanstalk:us-east-1:287872994760:applicationversion/nyc-active/*"}
+      }
+    },
+    {
+      "Sid": "StoreOnlyTeamWorkflowBundles",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:GetObjectVersion"],
+      "Resource": "arn:aws:s3:::elasticbeanstalk-us-east-1-287872994760/nyc-active/gha/*"
+    },
+    {
+      "Sid": "ReadPreviousTeamBundlesForRollback",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectAcl"],
+      "Resource": "arn:aws:s3:::elasticbeanstalk-us-east-1-287872994760/nyc-active/*"
+    },
+    {
+      "Sid": "ManageOnlyTeamBeanstalkRuntimeFiles",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectAcl", "s3:PutObjectAcl"],
+      "Resource": [
+        "arn:aws:s3:::elasticbeanstalk-us-east-1-287872994760/resources/_runtime/_embedded_extensions/nyc-active/*",
+        "arn:aws:s3:::elasticbeanstalk-us-east-1-287872994760/resources/environments/e-c27h4y6per/*"
+      ]
+    },
+    {
+      "Sid": "CleanOnlyExistingTeamEnvironmentFiles",
+      "Effect": "Allow",
+      "Action": "s3:DeleteObject",
+      "Resource": "arn:aws:s3:::elasticbeanstalk-us-east-1-287872994760/resources/environments/e-c27h4y6per/*"
+    },
+    {
+      "Sid": "ReadExistingBundleBucketMetadata",
+      "Effect": "Allow",
+      "Action": ["s3:Get*", "s3:ListBucket"],
+      "Resource": "arn:aws:s3:::elasticbeanstalk-us-east-1-287872994760"
+    },
+    {
+      "Sid": "ReadOnlyTheExistingTeamStack",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:GetTemplate", "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackResources", "cloudformation:DescribeStackResource",
+        "cloudformation:DescribeStackEvents"
+      ],
+      "Resource": "arn:aws:cloudformation:us-east-1:287872994760:stack/awseb-e-c27h4y6per-stack/af7f36f0-c843-11f1-b54e-0afff2b458ab"
+    },
+    {
+      "Sid": "UpdateOnlyTheExistingTeamStackForDeploymentMetadata",
+      "Effect": "Allow",
+      "Action": "cloudformation:UpdateStack",
+      "Resource": "arn:aws:cloudformation:us-east-1:287872994760:stack/awseb-e-c27h4y6per-stack/af7f36f0-c843-11f1-b54e-0afff2b458ab"
+    },
+    {
+      "Sid": "ReadTeamBudget",
+      "Effect": "Allow",
+      "Action": "budgets:ViewBudget",
+      "Resource": "arn:aws:budgets::287872994760:budget/nyc-active-monthly-15-usd"
+    },
+    {
+      "Sid": "CheckThatTeamDistributionIsEnabled",
+      "Effect": "Allow",
+      "Action": "cloudfront:GetDistribution",
+      "Resource": "arn:aws:cloudfront::287872994760:distribution/E1YOQE0SL33H2U"
+    },
+    {
+      "Sid": "ReadInstanceAndLaunchTemplateMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances", "ec2:DescribeInstanceStatus", "ec2:DescribeImages",
+        "ec2:DescribeLaunchTemplates", "ec2:DescribeLaunchTemplateVersions",
+        "ec2:DescribeSecurityGroups", "ec2:DescribeSubnets", "ec2:DescribeVpcs",
+        "ec2:DescribeAvailabilityZones", "ec2:DescribeTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowDeploymentProcessChangesUnlessBudgetStopped",
+      "Effect": "Allow",
+      "Action": ["autoscaling:SuspendProcesses", "autoscaling:ResumeProcesses"],
+      "Resource": "arn:aws:autoscaling:us-east-1:287872994760:autoScalingGroup:8e7ada46-f5b7-4769-a867-8aed2124a4c5:autoScalingGroupName/awseb-e-c27h4y6per-stack-AWSEBAutoScalingGroup-UQYtDQcWnyDe",
+      "Condition": {"StringNotEquals": {"autoscaling:ResourceTag/nyc-active:budget-stopped": "true"}}
+    },
+    {
+      "Sid": "NeverResumeBudgetStoppedTeamGroup",
+      "Effect": "Deny",
+      "Action": "autoscaling:ResumeProcesses",
+      "Resource": "arn:aws:autoscaling:us-east-1:287872994760:autoScalingGroup:8e7ada46-f5b7-4769-a867-8aed2124a4c5:autoScalingGroupName/awseb-e-c27h4y6per-stack-AWSEBAutoScalingGroup-UQYtDQcWnyDe",
+      "Condition": {"StringEquals": {"autoscaling:ResourceTag/nyc-active:budget-stopped": "true"}}
+    },
+    {
+      "Sid": "CheckCapacityAndSuspensionState",
+      "Effect": "Allow",
+      "Action": "autoscaling:DescribeAutoScalingGroups",
+      "Resource": "*"
+    }
+  ]
+}

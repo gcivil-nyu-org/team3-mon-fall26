@@ -1,0 +1,8 @@
+{# View / Edit toggle for the signed-in member's own profile, modeled on events/_hub_header.html.          #}
+{# Include only when the profile belongs to the viewer: {% include "accounts/_profile_toggle.html" with active="view" %} #}
+<div class="events-hub profile-hub">
+  <nav class="events-hub-toggle" aria-label="Profile">
+    <a href="{% url 'public_profile' username=user.username %}" {% if active != 'edit' %}aria-current="page"{% endif %}>View</a>
+    <a href="{% url 'edit_profile' %}" {% if active == 'edit' %}aria-current="page"{% endif %}>Edit</a>
+  </nav>
+</div>

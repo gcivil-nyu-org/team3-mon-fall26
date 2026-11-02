@@ -1,0 +1,12 @@
+* text=auto eol=lf
+*.py text eol=lf
+*.config text eol=lf
+Procfile text eol=lf
+*.sh text eol=lf
+.env.example export-ignore
+.ebignore export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore
+docs/ export-ignore
+infra/ export-ignore
+.github/ export-ignore
