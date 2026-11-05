@@ -50,7 +50,7 @@
 .explore-park-preview h3 { font-size:.9rem; margin-top:26px; }
 .explore-preview-events { padding-left:18px; margin-bottom:26px; }
 .explore-preview-events li { margin-bottom:14px; }
-.explore-status-badge { color:var(--danger); background:var(--danger-bg); }
+.explore-status-badge { color:#fff; background:var(--danger); }
 [hidden] { display:none !important; }
 @media(max-width:900px) { .explore-park-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:600px) { .explore-heading { align-items:flex-start; gap:16px; } .explore-heading>.btn { font-size:.75rem; white-space:nowrap; } .explore-heading p { font-size:.8rem; } .explore-park-grid { grid-template-columns:1fr; } #explore-map { height:480px; } .explore-map-legend { font-size:.6rem; padding:8px; gap:5px; left:8px; } .explore-toolbar p { font-size:.7rem; } .explore-switch a { padding:6px 14px; } }

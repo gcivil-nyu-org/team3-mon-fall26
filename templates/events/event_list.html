@@ -70,12 +70,12 @@
       {% for event in events %}
         <li class="discover-item"><a class="discover-link" href="{{ event.get_absolute_url }}">
           <span class="discover-date" aria-hidden="true"><span class="discover-date-dow">{{ event.date|date:'D' }}</span><span class="discover-date-day">{{ event.date|date:'j' }}</span><span class="discover-date-mon">{{ event.date|date:'M' }}</span></span>
-          <span class="discover-body"><span class="event-badges"><span class="event-badge">{{ event.get_activity_display }}</span><span class="event-badge event-badge--outline">{{ event.get_skill_level_display }}</span>{% if event.status != 'scheduled' %}<span class="event-badge explore-status-badge">{{ event.get_status_display }}</span>{% endif %}</span>
+          <span class="discover-body">{% include "events/includes/event_badges.html" %}
             <span class="discover-name">{{ event.display_title }}</span>
             <span class="discover-meta"><span>{{ event.date|date:'D, M j' }} · {{ event.time|time:'g:i A' }}</span><span>{{ event.park.name }} · {{ event.park.get_borough_display }}</span></span>
             {% if event.meeting_spot %}<span class="discover-meta">Meet at {{ event.meeting_spot }}</span>{% endif %}
           </span>
-          <span class="discover-capacity"><span class="discover-spots">{% if event.is_unlimited %}Unlimited spots{% else %}Up to {{ event.capacity }}{% endif %}</span>{% if not event.is_unlimited %}<span class="discover-spots-sub">participant{{ event.capacity|pluralize }}</span>{% endif %}</span>
+          {% include "events/includes/event_spots.html" %}
         </a></li>
       {% empty %}
         {% include "events/includes/empty_state.html" with state=empty_state tag="li" %}

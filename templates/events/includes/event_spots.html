@@ -1,0 +1,10 @@
+{# US-4.1 (#29): event card availability. Needs `spots_remaining` from parks.views.with_availability. #}
+{# US-4.7 (#76): hosts see confirmed players vs. the limit first; cancelled/removed games (My Events only) show no spots. #}
+<span class="discover-capacity">
+  {% if event.status != 'scheduled' %}<span class="discover-spots discover-spots--ended">{% if event.status == 'cancelled' %}Cancelled{% else %}Removed{% endif %}</span>
+  {% elif event.viewer_hosting %}<span class="discover-spots">{% if event.capacity %}{{ event.confirmed_players }} / {{ event.capacity }} players{% else %}{{ event.confirmed_players }} player{{ event.confirmed_players|pluralize }}{% endif %}</span>
+    <span class="discover-spots-sub">{% if event.spots_remaining is None %}Unlimited spots{% elif event.spots_remaining %}{{ event.spots_remaining }} spot{{ event.spots_remaining|pluralize }} left{% else %}Full{% endif %}</span>
+  {% elif event.spots_remaining is None %}<span class="discover-spots">Unlimited spots</span>
+  {% elif event.spots_remaining %}<span class="discover-spots">{{ event.spots_remaining }} spot{{ event.spots_remaining|pluralize }} left</span><span class="discover-spots-sub">of {{ event.capacity }}</span>
+  {% else %}<span class="discover-spots discover-spots--ended">Full</span><span class="discover-spots-sub">of {{ event.capacity }}</span>{% endif %}
+</span>

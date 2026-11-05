@@ -1049,6 +1049,143 @@ a:focus-visible {
   border-radius: var(--radius);
 }
 
+.event-attendance {
+  padding-top: 20px;
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.event-attendance-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.event-attendance-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.event-attendance-count {
+  min-width: 28px;
+  padding: 2px 8px;
+  font-size: 0.8125rem;
+  text-align: center;
+  color: var(--green-900);
+  background: var(--green-50);
+  border-radius: 999px;
+}
+
+.event-spots {
+  font-weight: 700;
+  color: var(--green-700);
+}
+
+.event-spots--full {
+  color: var(--muted);
+}
+
+.event-spots-bar {
+  height: 8px;
+  overflow: hidden;
+  background: var(--green-50);
+  border-radius: 999px;
+}
+
+.event-spots-bar span {
+  display: block;
+  height: 100%;
+  background: var(--green-600);
+  border-radius: inherit;
+}
+
+.event-spots-caption {
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.event-roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 16px 0 0;
+  list-style: none;
+}
+
+.event-roster-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  font-size: 0.875rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.event-roster-avatar {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  background: var(--green-50);
+  border-radius: 50%;
+}
+
+.event-roster-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.event-roster-avatar .profile-photo-placeholder {
+  width: 14px;
+  height: 14px;
+}
+
+.event-roster-tag {
+  padding: 1px 6px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--green-900);
+  border-radius: 999px;
+}
+
+.event-roster-empty {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.event-attendance-actions {
+  margin-top: 20px;
+}
+
+.event-attendance-actions > p {
+  margin: 12px 0 0;
+}
+
+.event-attendance-note {
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+  background: var(--bg);
+  border-radius: var(--radius);
+}
+
 .event-manage {
   padding-top: 20px;
   margin-top: 20px;
@@ -1232,6 +1369,11 @@ a:focus-visible {
   color: var(--green-700);
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--green-700);
+}
+
+.event-badge--host {
+  color: #fff;
+  background: var(--green-900);
 }
 
 .discover-name {

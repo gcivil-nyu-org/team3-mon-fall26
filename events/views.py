@@ -38,6 +38,23 @@ def personal_scope_redirect(request, filters):
         return redirect_to_login(request.get_full_path())
 
 
+def with_viewer_attending(events, user):
+    """Annotate `viewer_attending` (the viewer has an active RSVP) for the Explore card badges."""
+    if not user.is_authenticated:
+        return events
+    return events.annotate(
+        viewer_attending=Exists(RSVP.objects.filter(event_id=OuterRef('pk'), user=user, status=RSVPStatus.ACTIVE))
+    )
+
+
+def event_cards(events, user):
+    """Explore event cards: spots left, and `viewer_hosting` for the Host badge (US-4.7)."""
+    events = with_availability(events)
+    for event in events:
+        event.viewer_hosting = user.is_authenticated and event.organizer_id == user.pk
+    return events
+
+
 CLEARABLE_FILTERS = (
     'q',
     'borough',
@@ -74,10 +91,14 @@ def explore_empty_state(filters, event_total, park_total, has_park_data):
         if filters['events_only'] and filters['scope'] == 'all' and not event_total
         else 'no_matches'
     )
-    map_state = no_parks if not park_total else None
+    # US-4.7: an empty My Events points back to all events (the account menu link opens the map).
+    no_events = 'no_my_events' if filters['scope'] != 'all' else 'no_events'
+    map_state = None
+    if not park_total:
+        map_state = no_events if no_events == 'no_my_events' and not event_total else no_parks
     if filters['tab'] == 'parks':
         return (no_parks if not park_total else None), map_state
-    return ('no_events' if not event_total else None), map_state
+    return (no_events if not event_total else None), map_state
 
 
 def park_details_url(park):
@@ -102,11 +123,8 @@ class EventListView(ListView):
             return displayed_parks(self.filters, self.request.user).prefetch_related(
                 Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active'))
             )
-        return (
-            matching_events(self.filters, self.request.user)
-            .with_confirmed_players()
-            .select_related('park', 'organizer')
-        )
+        events = matching_events(self.filters, self.request.user).with_confirmed_players()
+        return with_viewer_attending(events, self.request.user).select_related('park', 'organizer')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -121,6 +139,8 @@ class EventListView(ListView):
             for park in context['parks']:
                 park.facility_labels = facility_labels(park)
                 park.details_url = park_details_url(park)
+        else:
+            context['events'] = event_cards(context['object_list'], self.request.user)
         context.update(
             filters=self.filters,
             filter_form=self.filter_form,
@@ -241,13 +261,7 @@ def park_preview_context(park, filters, user):
     events = (
         matching_events(filters, user).filter(park=park).with_confirmed_players().select_related('organizer__profile')
     )
-    if user.is_authenticated:
-        events = events.annotate(
-            viewer_attending=Exists(RSVP.objects.filter(event_id=OuterRef('pk'), user=user, status=RSVPStatus.ACTIVE))
-        )
-    park_events = with_availability(events)
-    for event in park_events:
-        event.viewer_hosting = user.is_authenticated and event.organizer_id == user.pk
+    park_events = event_cards(with_viewer_attending(events, user), user)
     close_params = filter_params(filters)
     close_params.pop('park', None)
     return {
@@ -316,12 +330,12 @@ class EventDetailView(DetailView):
     context_object_name = 'event'
 
     def get_queryset(self):
-        return Event.objects.with_confirmed_players().select_related('park', 'organizer')
+        return Event.objects.with_confirmed_players().select_related('park', 'organizer__profile')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         event = self.object
-        active_rsvps = event.rsvps.filter(status=RSVPStatus.ACTIVE).select_related('user')
+        active_rsvps = event.rsvps.filter(status=RSVPStatus.ACTIVE).select_related('user__profile')
         confirmed_players = event.confirmed_players
         user_rsvp = None
         if self.request.user.is_authenticated and self.request.user != event.organizer:
