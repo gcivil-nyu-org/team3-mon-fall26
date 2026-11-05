@@ -8,11 +8,7 @@
       <span class="discover-meta"><span>{{ event.date|date:'D, M j' }} · {{ event.time|time:'g:i A' }}</span><span>Hosted by @{{ event.organizer.profile.display_username|default:event.organizer.username }}</span></span>
       <span class="discover-meta">{% if event.meeting_spot %}Meet at {{ event.meeting_spot }}{% else %}Meeting spot not specified{% endif %}</span>
     </span>
-    <span class="discover-capacity">
-      {% if event.spots_remaining is None %}<span class="discover-spots">Unlimited spots</span>
-      {% elif event.spots_remaining %}<span class="discover-spots">{{ event.spots_remaining }} spot{{ event.spots_remaining|pluralize }} remaining</span><span class="discover-spots-sub">of {{ event.capacity }}</span>
-      {% else %}<span class="discover-spots discover-spots--ended">Full</span><span class="discover-spots-sub">of {{ event.capacity }}</span>{% endif %}
-    </span>
+    {% include "events/includes/event_spots.html" %}
   </a></li>
 {% empty %}
   <li class="discover-empty">

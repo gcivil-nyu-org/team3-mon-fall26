@@ -1,0 +1,6 @@
+{# US-4.1 (#29): event card availability. Needs `spots_remaining` from parks.views.with_availability. #}
+<span class="discover-capacity">
+  {% if event.spots_remaining is None %}<span class="discover-spots">Unlimited spots</span>
+  {% elif event.spots_remaining %}<span class="discover-spots">{{ event.spots_remaining }} spot{{ event.spots_remaining|pluralize }} left</span><span class="discover-spots-sub">of {{ event.capacity }}</span>
+  {% else %}<span class="discover-spots discover-spots--ended">Full</span><span class="discover-spots-sub">of {{ event.capacity }}</span>{% endif %}
+</span>

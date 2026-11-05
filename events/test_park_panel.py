@@ -195,7 +195,7 @@ class ParkPanelTests(TestCase):
         self.assertEqual(events[cancelled_rsvp.pk].spots_remaining, 4)
         self.assertContains(response, 'Full')
         self.assertContains(response, 'Unlimited spots')
-        self.assertContains(response, '4 spots remaining')
+        self.assertContains(response, '4 spots left')
         self.client.logout()
         anonymous = self.panel()
         self.assertNotContains(anonymous, "You're attending")

@@ -121,6 +121,8 @@ class EventListView(ListView):
             for park in context['parks']:
                 park.facility_labels = facility_labels(park)
                 park.details_url = park_details_url(park)
+        else:
+            context['events'] = with_availability(context['object_list'])
         context.update(
             filters=self.filters,
             filter_form=self.filter_form,
@@ -316,12 +318,12 @@ class EventDetailView(DetailView):
     context_object_name = 'event'
 
     def get_queryset(self):
-        return Event.objects.with_confirmed_players().select_related('park', 'organizer')
+        return Event.objects.with_confirmed_players().select_related('park', 'organizer__profile')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         event = self.object
-        active_rsvps = event.rsvps.filter(status=RSVPStatus.ACTIVE).select_related('user')
+        active_rsvps = event.rsvps.filter(status=RSVPStatus.ACTIVE).select_related('user__profile')
         confirmed_players = event.confirmed_players
         user_rsvp = None
         if self.request.user.is_authenticated and self.request.user != event.organizer:

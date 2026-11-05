@@ -75,7 +75,7 @@
             <span class="discover-meta"><span>{{ event.date|date:'D, M j' }} · {{ event.time|time:'g:i A' }}</span><span>{{ event.park.name }} · {{ event.park.get_borough_display }}</span></span>
             {% if event.meeting_spot %}<span class="discover-meta">Meet at {{ event.meeting_spot }}</span>{% endif %}
           </span>
-          <span class="discover-capacity"><span class="discover-spots">{% if event.is_unlimited %}Unlimited spots{% else %}Up to {{ event.capacity }}{% endif %}</span>{% if not event.is_unlimited %}<span class="discover-spots-sub">participant{{ event.capacity|pluralize }}</span>{% endif %}</span>
+          {% include "events/includes/event_spots.html" %}
         </a></li>
       {% empty %}
         {% include "events/includes/empty_state.html" with state=empty_state tag="li" %}

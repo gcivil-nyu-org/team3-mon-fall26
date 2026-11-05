@@ -22,7 +22,8 @@
     <div class="event-meta-item">
       <dt>Park Location</dt>
       <dd>
-        <strong>{{ event.park.name }}</strong> ({{ event.park.get_borough_display }})
+        {# Retired parks have no page (404), so their name stays plain text. #}
+        <strong>{% if event.park.is_retired %}{{ event.park.name }}{% else %}<a href="{% url 'park_detail' event.park.pk %}">{{ event.park.name }}</a>{% endif %}</strong> ({{ event.park.get_borough_display }})
         {% if event.park.location or event.park.address %}
           <span class="event-meta-sub">{{ event.park.location|default:event.park.address }}</span>
         {% endif %}
@@ -62,25 +63,34 @@
   </section>
 
   <section class="event-attendance" aria-labelledby="event-attendance-title">
-    <h2 id="event-attendance-title">Going ({{ confirmed_players }})</h2>
-    {% if event.host_is_playing %}
-      <p>Organizer · @{{ event.organizer.username }}</p>
+    <div class="event-attendance-head">
+      <h2 id="event-attendance-title">Going <span class="event-attendance-count">{{ confirmed_players }}</span></h2>
+      {% if event.capacity %}
+        <span class="event-spots{% if not spots_remaining %} event-spots--full{% endif %}">{% if spots_remaining %}{{ spots_remaining }} spot{{ spots_remaining|pluralize }} left{% else %}Full{% endif %}</span>
+      {% else %}
+        <span class="event-spots">Unlimited spots</span>
+      {% endif %}
+    </div>
+    {% if event.capacity %}
+      <div class="event-spots-bar" aria-hidden="true"><span style="width: {% widthratio confirmed_players event.capacity 100 %}%"></span></div>
+      <p class="event-spots-caption">{{ confirmed_players }} of {{ event.capacity }} spots taken</p>
     {% endif %}
-    <ul>
+    <ul class="event-roster">
+      {% if event.host_is_playing %}
+        {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host" %}
+      {% endif %}
       {% for rsvp in active_rsvps %}
-        <li>@{{ rsvp.user.username }}{% if user.is_authenticated and rsvp.user_id == user.id %} <span>(you)</span>{% endif %}</li>
+        {% if user.is_authenticated and rsvp.user_id == user.id %}
+          {% include "events/includes/roster_chip.html" with member=rsvp.user tag="You" %}
+        {% else %}
+          {% include "events/includes/roster_chip.html" with member=rsvp.user tag="" %}
+        {% endif %}
       {% empty %}
-        {% if not event.host_is_playing %}<li>No one has RSVP’d yet.</li>{% endif %}
+        {% if not event.host_is_playing %}<li class="event-roster-empty">No one has RSVP’d yet.</li>{% endif %}
       {% endfor %}
     </ul>
-    <p>
-      {% if event.capacity %}
-        {% if spots_remaining %}{{ spots_remaining }} spot{{ spots_remaining|pluralize }} remaining{% else %}Full{% endif %}
-      {% else %}
-        Unlimited spots
-      {% endif %}
-    </p>
 
+    <div class="event-attendance-actions">
     {% if user.is_authenticated and user == event.organizer %}
       {# Organizers are counted as the host when playing, never as an RSVP. #}
     {% elif user_rsvp and user_rsvp.status == 'active' and not event_block_reason %}
@@ -98,13 +108,14 @@
     {% elif user.is_authenticated and user != event.organizer and rsvp_block_reason %}
       <button class="btn btn--primary" type="button" disabled>Join event</button>
     {% elif not user.is_authenticated and not rsvp_block_reason %}
-      <a href="{% url 'login' %}?next={{ event.get_absolute_url|urlencode }}">Sign in to RSVP</a>
+      <a class="btn btn--primary" href="{% url 'login' %}?next={{ event.get_absolute_url|urlencode }}">Sign in to RSVP</a>
     {% endif %}
     {% if event_block_reason %}
-      <p role="status">{{ event_block_reason }}</p>
+      <p class="event-attendance-note" role="status">{{ event_block_reason }}</p>
     {% elif show_rsvp_block_reason %}
-      <p role="status">{{ rsvp_block_reason }}</p>
+      <p class="event-attendance-note" role="status">{{ rsvp_block_reason }}</p>
     {% endif %}
+    </div>
   </section>
 
   {% if can_cancel_event %}
