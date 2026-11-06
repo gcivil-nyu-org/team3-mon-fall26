@@ -14,6 +14,7 @@ from parks.models import Facility, Park
 from parks.views import facility_groups, with_availability
 
 from .forms import EventCreateForm
+from .hosting import HostPlayingError, set_host_playing
 from .hub import remember_explore
 from .models import Event, EventStatus, RSVP, RSVPStatus
 from .explore import (
@@ -321,6 +322,30 @@ class EventCancelView(OrganizerOrAdminRequiredMixin, View):
                 event.status = EventStatus.CANCELLED
                 event.save(update_fields=['status', 'updated_at'])
                 messages.success(request, 'Your event has been cancelled.')
+        return redirect(event.get_absolute_url())
+
+
+class EventHostPlayingView(LoginRequiredMixin, View):
+    """The host's own "I'm playing in this game" switch on the event page (US-3.10 / #82).
+
+    Only the organizer chooses whether they play. Until Edit Event (#25) lands this is the place to
+    change it after creation; #25's form should call the same `set_host_playing()`.
+    """
+
+    def post(self, request, pk):
+        event = get_object_or_404(Event, pk=pk)
+        if request.user != event.organizer:
+            raise PermissionDenied
+        playing = request.POST.get('playing') == '1'
+        try:
+            _, changed = set_host_playing(event.pk, playing)
+        except HostPlayingError as error:
+            messages.error(request, str(error))
+        else:
+            if changed:
+                messages.success(
+                    request, "You're playing in this game." if playing else "You're no longer playing in this game."
+                )
         return redirect(event.get_absolute_url())
 
 

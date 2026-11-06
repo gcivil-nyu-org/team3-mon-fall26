@@ -73,11 +73,16 @@
     </div>
     {% if event.capacity %}
       <div class="event-spots-bar" aria-hidden="true"><span style="width: {% widthratio confirmed_players event.capacity 100 %}%"></span></div>
-      <p class="event-spots-caption">{{ confirmed_players }} of {{ event.capacity }} spots taken</p>
+      <p class="event-spots-caption">{{ confirmed_players }} / {{ event.capacity }} players</p>
+    {% else %}
+      <p class="event-spots-caption">{{ confirmed_players }} player{{ confirmed_players|pluralize }}</p>
     {% endif %}
     <ul class="event-roster">
+      {# The host is always listed; only "Playing" takes a spot (US-3.10 / #82). #}
       {% if event.host_is_playing %}
-        {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host" %}
+        {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host · Playing" %}
+      {% else %}
+        {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host · Not playing" %}
       {% endif %}
       {% for rsvp in active_rsvps %}
         {% if user.is_authenticated and rsvp.user_id == user.id %}
@@ -86,13 +91,21 @@
           {% include "events/includes/roster_chip.html" with member=rsvp.user tag="" %}
         {% endif %}
       {% empty %}
-        {% if not event.host_is_playing %}<li class="event-roster-empty">No one has RSVP’d yet.</li>{% endif %}
+        <li class="event-roster-empty">No one has RSVP’d yet.</li>
       {% endfor %}
     </ul>
 
     <div class="event-attendance-actions">
     {% if user.is_authenticated and user == event.organizer %}
-      {# Organizers are counted as the host when playing, never as an RSVP. #}
+      {# Organizers never RSVP; they choose whether they play (US-3.10 / #82). Edit Event (#25) will offer the same. #}
+      <form class="event-host-playing" method="post" action="{% url 'event_host_playing' event.pk %}">
+        {% csrf_token %}
+        <label class="event-host-playing-toggle">
+          <input type="checkbox" name="playing" value="1"{% if event.host_is_playing %} checked{% endif %}{% if event_block_reason %} disabled{% endif %}>
+          I'm playing in this game
+        </label>
+        {% if not event_block_reason %}<button class="btn btn--ghost" type="submit">Save</button>{% endif %}
+      </form>
     {% elif user_rsvp and user_rsvp.status == 'active' and not event_block_reason %}
       <form method="post" action="{% url 'event_rsvp_cancel' event.pk %}" onsubmit="return confirm('Cancel your RSVP?');">
         {% csrf_token %}

@@ -32,6 +32,11 @@
       {% include "includes/form_field.html" with field=form.capacity %}
     </div>
 
+    <div class="field event-host-playing-field">
+      <label class="event-host-playing-toggle">{{ form.host_is_playing }} {{ form.host_is_playing.label }}</label>
+      <div class="field-help" id="{{ form.host_is_playing.auto_id }}_helptext">{{ form.host_is_playing.help_text }}</div>
+    </div>
+
     {% include "includes/form_field.html" with field=form.description %}
 
     <div class="event-form-actions">

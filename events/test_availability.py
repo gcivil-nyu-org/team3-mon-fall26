@@ -97,7 +97,7 @@ class EventAvailabilityTests(TestCase):
 
         response = self.client.get(game.get_absolute_url())
 
-        self.assertContains(response, '@CourtCaptain <span class="event-roster-tag">Host</span>')
+        self.assertContains(response, '@CourtCaptain <span class="event-roster-tag">Host · Playing</span>')
         self.assertContains(response, 'avatars/captain.png')
         self.assertContains(response, '@Hooper</li>')
         self.assertContains(response, '@spots-player1</li>', msg_prefix='No profile falls back to the username')

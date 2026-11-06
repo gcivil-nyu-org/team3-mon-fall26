@@ -1178,6 +1178,40 @@ a:focus-visible {
   margin: 12px 0 0;
 }
 
+/* Host's "I'm playing in this game" switch: create form and event page (US-3.10 / #82). */
+.event-host-playing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.event-host-playing-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.event-host-playing-toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--green-700);
+}
+
+.event-host-playing-toggle:has(input:disabled) {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.event-host-playing-field .field-help {
+  margin-top: 4px;
+}
+
 .event-attendance-note {
   padding: 10px 12px;
   font-size: 0.875rem;
