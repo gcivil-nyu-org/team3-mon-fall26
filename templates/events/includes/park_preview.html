@@ -2,7 +2,7 @@
   <p class="explore-card-kicker">{{ park.get_borough_display }} · {{ park.zipcode|default:'NYC' }}</p>
   <h2 id="park-panel-title">{{ park.name }}</h2>
   <p>{{ park.address|default:park.location|default:'Address not specified' }}</p>
-  <p class="explore-rating"><span aria-hidden="true">☆</span> Not yet rated</p>
+  {% include "parks/includes/rating_badge.html" with park=park only %}
   <section class="park-panel-section" aria-label="Park facilities">
     <h3>Facilities</h3>
     <ul class="park-facilities">

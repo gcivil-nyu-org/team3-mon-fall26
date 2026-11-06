@@ -1,0 +1,49 @@
+{% if own_review %}
+  <aside class="park-review-own" aria-labelledby="own-review-title">
+    <h3 id="own-review-title">Your review</h3>
+    {% include "parks/includes/review.html" with review=own_review only %}
+    {# Owner edit/delete controls activate when #41 provides these routes. #}
+    {% url 'park_review_edit' pk=own_review.pk as review_edit_url %}
+    {% url 'park_review_delete' pk=own_review.pk as review_delete_url %}
+    {% if review_edit_url or review_delete_url %}
+    <div class="park-review-actions">
+      {% if review_edit_url %}<a class="btn btn--ghost" href="{{ review_edit_url }}">Edit</a>{% endif %}
+      {% if review_delete_url %}
+      <form method="post" action="{{ review_delete_url }}" onsubmit="return confirm('Delete your review?');">
+        {% csrf_token %}<button class="btn btn--ghost" type="submit">Delete</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </aside>
+{% elif user.is_authenticated %}
+  <form class="park-review-form" method="post" action="{% url 'park_detail' pk=park.pk %}#reviews" aria-label="Write a park review">
+    <h3>Write a review</h3>
+    {% csrf_token %}
+    {% include "includes/form_errors.html" with form=review_form %}
+    {% include "includes/form_field.html" with field=review_form.rating %}
+    {% include "includes/form_field.html" with field=review_form.body %}
+    <button class="btn btn--primary" type="submit">Post review</button>
+  </form>
+{% else %}
+  {% url 'park_detail' pk=park.pk as park_url %}
+  {% with review_return=park_url|add:'#reviews' %}
+  <p class="park-review-signin"><a href="{% url 'login' %}?next={{ review_return|urlencode }}">Log in to write a review</a></p>
+  {% endwith %}
+{% endif %}
+
+<div class="park-review-community">
+  <h3>Community reviews</h3>
+  {% for review in reviews_page %}
+    {% include "parks/includes/review.html" with review=review only %}
+  {% empty %}
+    <p class="park-detail-empty">No reviews yet</p>
+  {% endfor %}
+</div>
+{% if reviews_page.has_other_pages %}
+<nav class="park-review-pages" aria-label="Review pages">
+  {% if reviews_page.has_previous %}<a class="btn btn--ghost" href="?reviews_page={{ reviews_page.previous_page_number }}#reviews">Previous reviews</a>{% endif %}
+  <span>Page {{ reviews_page.number }} of {{ reviews_page.paginator.num_pages }}</span>
+  {% if reviews_page.has_next %}<a class="btn btn--ghost" href="?reviews_page={{ reviews_page.next_page_number }}#reviews">Next reviews</a>{% endif %}
+</nav>
+{% endif %}

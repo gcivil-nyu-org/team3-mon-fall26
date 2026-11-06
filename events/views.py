@@ -99,8 +99,10 @@ class EventListView(ListView):
 
     def get_queryset(self):
         if self.filters['tab'] == 'parks':
-            return displayed_parks(self.filters, self.request.user).prefetch_related(
-                Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active'))
+            return (
+                displayed_parks(self.filters, self.request.user)
+                .with_review_summary()
+                .prefetch_related(Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active')))
             )
         return (
             matching_events(self.filters, self.request.user)
@@ -143,6 +145,7 @@ class EventListView(ListView):
         if panel:
             selected = (
                 displayed_parks(self.filters, self.request.user)
+                .with_review_summary()
                 .prefetch_related(Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active')))
                 .first()
             )
@@ -225,9 +228,9 @@ def explore_park_preview(request, pk):
     if redirect:
         return redirect
     park = get_object_or_404(
-        displayed_parks(filters, request.user).prefetch_related(
-            Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active'))
-        ),
+        displayed_parks(filters, request.user)
+        .with_review_summary()
+        .prefetch_related(Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active'))),
         pk=pk,
     )
     return render(request, 'events/includes/park_preview.html', park_preview_context(park, filters, request.user))

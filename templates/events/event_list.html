@@ -55,7 +55,7 @@
           <h2>{{ park.name }}</h2>
           <p class="explore-address">{{ park.address|default:park.location|default:'Address not specified' }}</p>
           <p class="explore-amenities">{% for label in park.facility_labels|slice:':4' %}<span>{{ label }}</span>{% empty %}Facility details not specified{% endfor %}</p>
-          <p class="explore-rating">☆ Not yet rated</p>
+          {% include "parks/includes/rating_badge.html" with park=park only %}
           <footer><span class="explore-event-count">{{ park.event_count }} matching event{{ park.event_count|pluralize }}</span>
             <a class="explore-quick-view" href="{{ park.details_url }}" data-park-quick-view data-panel-url="{% explore_url park=park.pk panel='1' %}">Quick view <span aria-hidden="true">↗</span></a>
             {% if park.details_url %}<a href="{{ park.details_url }}">Park details</a>{% endif %}

@@ -1,9 +1,18 @@
+from django.contrib import messages
+from django.contrib.auth.views import redirect_to_login
+from django.core.paginator import Paginator
+from django.db import IntegrityError, transaction
 from django.db.models import Prefetch
+from django.shortcuts import redirect
+from django.urls import reverse
 from django.views.generic import DetailView
 
 from events.models import Event
 
-from .models import Facility, Park
+from .forms import ReviewForm
+from .models import Facility, Park, Review
+
+REVIEW_EXISTS_MESSAGE = 'You have already reviewed this park.'
 
 
 def facility_groups(facilities):
@@ -32,10 +41,42 @@ class ParkDetailView(DetailView):
     model = Park
     template_name = 'parks/park_detail.html'
     context_object_name = 'park'
+    http_method_names = ['get', 'post', 'head', 'options']
 
     def get_queryset(self):
         active = Facility.objects.filter(feature_status='Active')
-        return Park.objects.filter(is_retired=False).prefetch_related(Prefetch('facilities', queryset=active))
+        return (
+            Park.objects.filter(is_retired=False)
+            .with_review_summary()
+            .prefetch_related(Prefetch('facilities', queryset=active))
+        )
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        review_url = reverse('park_detail', kwargs={'pk': self.object.pk}) + '#reviews'
+        if not request.user.is_authenticated:
+            return redirect_to_login(review_url)
+        if self.object.reviews.filter(user=request.user).exists():
+            messages.error(request, REVIEW_EXISTS_MESSAGE)
+            return redirect(review_url)
+
+        form = ReviewForm(request.POST)
+        if form.is_valid():
+            review = form.save(commit=False)
+            review.park = self.object
+            review.user = request.user
+            try:
+                # The unique constraint also protects simultaneous first submissions.
+                with transaction.atomic():
+                    review.save()
+            except IntegrityError:
+                if not self.object.reviews.filter(user=request.user).exists():
+                    raise
+                messages.error(request, REVIEW_EXISTS_MESSAGE)
+            else:
+                messages.success(request, 'Your review has been posted.')
+            return redirect(review_url)
+        return self.render_to_response(self.get_context_data(review_form=form))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -48,4 +89,13 @@ class ParkDetailView(DetailView):
         context.update(
             facility_groups=facility_groups(self.object.facilities.all()), park_events=with_availability(events)
         )
+        context['reviews_page'] = Paginator(self.object.reviews.select_related('user'), 10).get_page(
+            self.request.GET.get('reviews_page')
+        )
+        context['own_review'] = (
+            Review.objects.filter(park=self.object, user=self.request.user).first()
+            if self.request.user.is_authenticated
+            else None
+        )
+        context.setdefault('review_form', ReviewForm())
         return context

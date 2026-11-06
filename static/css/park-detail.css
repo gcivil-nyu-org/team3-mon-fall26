@@ -12,6 +12,22 @@
 .park-facility-sport { font-weight:600; color:var(--ink); }
 .park-facility-notes { font-size:.8125rem; color:var(--muted); }
 
+.park-rating { color:var(--green-900); margin:0 0 16px; }
+.park-review-form, .park-review-own { margin:20px 0; padding:20px; border:1px solid var(--border); border-radius:10px; background:#f7faf6; }
+.park-review-form h3, .park-review-own h3, .park-review-community h3 { font-size:1rem; margin:0 0 14px; }
+.park-review-form .input-wrap { max-width:100%; }
+.park-review-form select, .park-review-form textarea { width:100%; }
+.park-review { padding:16px 0; border-bottom:1px solid var(--border); }
+.park-review-header { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; font-size:.875rem; }
+.park-review-header a { font-weight:600; overflow-wrap:anywhere; }
+.park-review-header time { color:var(--muted); }
+.park-review-rating { color:var(--green-900); font-weight:600; }
+.park-review-body { margin:10px 0 0; overflow-wrap:anywhere; }
+.park-review-own .park-review { padding:0; border:0; }
+.park-review-pages, .park-review-actions { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-top:16px; }
+.park-review-actions form { margin:0; }
+.park-review-signin { margin:16px 0; }
+
 @media(max-width:600px) {
   .park-detail { padding:20px 16px; }
   .park-detail-actions .btn { flex:1 1 100%; }
