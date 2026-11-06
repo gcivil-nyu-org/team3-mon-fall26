@@ -173,6 +173,14 @@ class Event(models.Model):
         """The event title, or its sport for events created before titles existed."""
         return self.title or self.get_activity_display()
 
+    def count_confirmed_players(self):
+        """Active RSVPs plus the host when playing, counted fresh (US-3.10).
+
+        Under the event lock (#31) this is the number to check capacity against; lists and cards use
+        the `with_confirmed_players()` annotation instead.
+        """
+        return self.rsvps.filter(status=RSVPStatus.ACTIVE).count() + int(self.host_is_playing)
+
     def can_be_managed_by(self, user):
         """Only the organizer or an administrator may edit, cancel, or remove attendees (#27)."""
         return user.is_authenticated and (user.pk == self.organizer_id or user.is_staff)

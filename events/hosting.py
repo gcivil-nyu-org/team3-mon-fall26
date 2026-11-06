@@ -9,7 +9,7 @@ the submitted capacity so both checks use the values being saved (#26).
 
 from django.db import transaction
 
-from .models import Event, EventStatus, RSVPStatus
+from .models import Event, EventStatus
 
 FULL_MESSAGE = 'The event is full. Raise the limit to add yourself.'
 STARTED_MESSAGE = "This game has already started, so you can't change whether you're playing."
@@ -42,8 +42,8 @@ def set_host_playing(event_pk, playing, *, capacity=...):
         event = Event.objects.select_for_update().get(pk=event_pk)
         if capacity is ...:
             capacity = event.capacity
-        active_rsvps = event.rsvps.filter(status=RSVPStatus.ACTIVE).count()
-        error = host_playing_error(event, playing, capacity=capacity, active_rsvps=active_rsvps)
+        others = event.count_confirmed_players() - int(event.host_is_playing)
+        error = host_playing_error(event, playing, capacity=capacity, active_rsvps=others)
         if error:
             raise HostPlayingError(error)
         if event.host_is_playing == playing:

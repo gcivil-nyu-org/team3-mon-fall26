@@ -403,9 +403,26 @@ class EventDetailView(DetailView):
         return context
 
 
+def join_block_reason(event, rsvp):
+    """Why `rsvp`'s user can't join `event` right now, or None. Call under the event lock (#31)."""
+    if rsvp and rsvp.status == RSVPStatus.ACTIVE:
+        return "You're already attending."
+    if rsvp and rsvp.status == RSVPStatus.REMOVED:
+        return 'Your RSVP was removed by the organizer.'
+    if event.status == EventStatus.CANCELLED:
+        return 'This event has been cancelled.'
+    if event.status == EventStatus.REMOVED:
+        return 'This event has been removed.'
+    if event.is_past:
+        return 'This event has already started.'
+    if event.capacity is not None and event.count_confirmed_players() >= event.capacity:
+        return 'This event is full.'
+    return None
+
+
 @require_POST
 def event_rsvp(request, pk):
-    event = get_object_or_404(Event.objects.with_confirmed_players(), pk=pk)
+    event = get_object_or_404(Event, pk=pk)
     if not request.user.is_authenticated:
         return redirect_to_login(event.get_absolute_url())
 
@@ -414,29 +431,22 @@ def event_rsvp(request, pk):
         messages.error(request, 'Organizers cannot RSVP to their own event.')
         return redirect(detail_url)
 
-    rsvp = RSVP.objects.filter(event=event, user=request.user).first()
-    if rsvp and rsvp.status == RSVPStatus.ACTIVE:
-        messages.error(request, "You're already attending.")
-        return redirect(detail_url)
-    if rsvp and rsvp.status == RSVPStatus.REMOVED:
-        messages.error(request, 'Your RSVP was removed by the organizer.')
-        return redirect(detail_url)
-
-    if event.status == EventStatus.CANCELLED:
-        messages.error(request, 'This event has been cancelled.')
-    elif event.status == EventStatus.REMOVED:
-        messages.error(request, 'This event has been removed.')
-    elif event.is_past:
-        messages.error(request, 'This event has already started.')
-    elif event.capacity is not None and event.confirmed_players >= event.capacity:
-        messages.error(request, 'This event is full.')
-    else:
-        if rsvp:
-            rsvp.status = RSVPStatus.ACTIVE
-            rsvp.save(update_fields=['status', 'updated_at'])
+    # US-4.3 (#31): lock the plain event row first (as EventCancelView does), so simultaneous joins,
+    # the host's "I'm playing" switch and a cancel run one at a time. Only then re-read the RSVP,
+    # re-check the event and count confirmed players.
+    with transaction.atomic():
+        event = Event.objects.select_for_update().get(pk=pk)
+        rsvp = RSVP.objects.filter(event=event, user=request.user).first()
+        reason = join_block_reason(event, rsvp)
+        if reason:
+            messages.error(request, reason)
         else:
-            RSVP.objects.create(event=event, user=request.user)
-        messages.success(request, 'You are attending this event.')
+            if rsvp:
+                rsvp.status = RSVPStatus.ACTIVE
+                rsvp.save(update_fields=['status', 'updated_at'])
+            else:
+                RSVP.objects.create(event=event, user=request.user)
+            messages.success(request, 'You are attending this event.')
 
     return redirect(detail_url)
 
@@ -452,8 +462,10 @@ def cancel_event_rsvp(request, pk):
         messages.error(request, 'Organizers cannot cancel an RSVP to their own event.')
         return redirect(detail_url)
 
+    # US-4.3 (#31): same lock order as Join, then re-check the event as it is now.
     with transaction.atomic():
-        rsvp = RSVP.objects.select_for_update().filter(event=event, user=request.user).first()
+        event = Event.objects.select_for_update().get(pk=pk)
+        rsvp = RSVP.objects.filter(event=event, user=request.user).first()
         if event.status != EventStatus.SCHEDULED:
             messages.error(request, 'RSVPs can only be cancelled for scheduled events.')
         elif event.is_past:
