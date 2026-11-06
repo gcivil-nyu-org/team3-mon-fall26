@@ -23,6 +23,7 @@ class EventCreateForm(forms.ModelForm):
             attrs={
                 'placeholder': 'Unlimited',
                 'data-capacity-input': 'true',
+                'data-capacity-max': MAX_CAPACITY,
             }
         ),
         error_messages={

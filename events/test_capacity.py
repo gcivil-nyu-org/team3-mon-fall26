@@ -159,6 +159,8 @@ class SetCapacityTests(CapacityTestCase):
         form = self.client.get(reverse('event_create'))
         self.assertContains(form, '<label for="id_capacity">Participant limit (optional)</label>', html=True)
         self.assertContains(form, "Total players, including you if you're playing. Leave blank for unlimited.")
+        # The live check (event_form.html) reads the upper limit from here.
+        self.assertContains(form, 'data-capacity-max="10000"')
 
     # Scenario: Valid limit
     def test_valid_limit_is_saved_and_shown(self):
