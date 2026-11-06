@@ -53,11 +53,17 @@
     const input = document.querySelector('input[data-capacity-input="true"]');
     if (!input) return;
     const fieldWrap = input.closest('.field');
-    const msg = 'Participant limit must be at least 1 or left blank for unlimited.';
+    const max = Number(input.dataset.capacityMax);
+    const tooSmall = 'Participant limit must be at least 1 or left blank for unlimited.';
+    const tooLarge = `Participant limit cannot exceed ${max.toLocaleString('en-US')}.`;
     input.addEventListener('input', () => {
       const raw = input.value.trim();
       const errors = fieldWrap.querySelectorAll('.field-error');
-      if (raw !== '' && (!Number.isInteger(Number(raw)) || Number(raw) < 1)) {
+      const value = Number(raw);
+      let msg = '';
+      if (raw !== '' && (!Number.isInteger(value) || value < 1)) msg = tooSmall;
+      else if (raw !== '' && value > max) msg = tooLarge;
+      if (msg) {
         fieldWrap.classList.add('field--error');
         if (errors.length === 0) {
           const p = document.createElement('p');

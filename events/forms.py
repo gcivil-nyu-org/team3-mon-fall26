@@ -17,11 +17,13 @@ class EventCreateForm(forms.ModelForm):
     capacity = forms.IntegerField(
         required=False,
         label='Participant limit (optional)',
-        help_text='Leave blank for unlimited participants, or enter at least 1.',
+        # US-3.3 (#24): the limit counts everyone playing, including the host when they play (US-3.10).
+        help_text="Total players, including you if you're playing. Leave blank for unlimited.",
         widget=forms.NumberInput(
             attrs={
                 'placeholder': 'Unlimited',
                 'data-capacity-input': 'true',
+                'data-capacity-max': MAX_CAPACITY,
             }
         ),
         error_messages={
