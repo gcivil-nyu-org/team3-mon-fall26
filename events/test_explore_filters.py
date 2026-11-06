@@ -94,6 +94,21 @@ class ExploreFilterTests(TestCase):
             {self.central.pk: 0, self.mccarren.pk: 1, self.unmapped.pk: 0},
         )
 
+    def test_date_range_includes_events_on_both_end_days(self):
+        first_day = self.event(date=datetime.date(2026, 10, 24), time=datetime.time(8))
+        last_day = self.event(date=datetime.date(2026, 10, 26), time=datetime.time(21))
+        self.event(date=datetime.date(2026, 10, 23), time=datetime.time(18))
+        self.event(date=datetime.date(2026, 10, 27), time=datetime.time(9))
+        f = self.filters('date_from=2026-10-24&date_to=2026-10-26')
+        self.assertEqual(list(matching_events(f)), [first_day, last_day])
+
+    def test_beginner_matches_beginner_and_all_levels_events(self):
+        beginner = self.event(skill_level='beginner', time=datetime.time(9))
+        all_levels = self.event(skill_level='all', time=datetime.time(10))
+        self.event(skill_level='intermediate')
+        self.event(skill_level='competitive')
+        self.assertEqual(list(matching_events(self.filters('skill=beginner'))), [beginner, all_levels])
+
     def test_today_uses_new_york_date_at_utc_midnight(self):
         self.event(date=datetime.date(2026, 10, 23), time=datetime.time(22))
         self.event(date=datetime.date(2026, 10, 24), time=datetime.time(10))

@@ -1,0 +1,2 @@
+{# One player in the event page's Going list: profile photo (or placeholder) and display name, like the nav. #}
+<li class="event-roster-item"><span class="event-roster-avatar">{% if member.profile.avatar %}<img src="{{ member.profile.avatar.url }}" alt="">{% else %}<span class="profile-photo-placeholder" aria-hidden="true"></span>{% endif %}</span>@{{ member.profile.display_username|default:member.username }}{% if tag %} <span class="event-roster-tag">{{ tag }}</span>{% endif %}</li>

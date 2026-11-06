@@ -89,7 +89,7 @@ class ParkUpcomingEventsTests(TestCase):
         self.event(title='Open run', capacity=None, time=datetime.time(17))
         response = self.page()
         self.assertEqual([event.spots_remaining for event in response.context['park_events']], [2, 0, None])
-        self.assertContains(response, '2 spots remaining')
+        self.assertContains(response, '2 spots left')
         self.assertContains(response, 'Full')
         self.assertContains(response, 'Unlimited spots')
 

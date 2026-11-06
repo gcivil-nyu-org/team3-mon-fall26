@@ -4,6 +4,7 @@ from .views import (
     EventCancelView,
     EventCreateView,
     EventDetailView,
+    EventHostPlayingView,
     EventListView,
     upcoming_events_api,
     event_map_api,
@@ -21,5 +22,6 @@ urlpatterns = [
     path('events/<int:pk>/rsvp/', event_rsvp, name='event_rsvp'),
     path('events/<int:pk>/rsvp/cancel/', cancel_event_rsvp, name='event_rsvp_cancel'),
     path('events/<int:pk>/cancel/', EventCancelView.as_view(), name='event_cancel'),
+    path('events/<int:pk>/playing/', EventHostPlayingView.as_view(), name='event_host_playing'),
     path('events/<int:pk>/', EventDetailView.as_view(), name='event_detail'),
 ]

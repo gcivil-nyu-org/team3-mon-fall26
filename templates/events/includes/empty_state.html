@@ -9,6 +9,13 @@
       <a class="btn btn--ghost" href="{% explore_url view='list' tab='parks' %}">Show parks instead</a>
       <a class="btn btn--primary" href="{% url 'event_create' %}">Create Event</a>
     </p>
+  {% elif state == 'no_my_events' %}
+    <h2>{% if filter_pills %}None of your events match your filters.{% else %}You have no upcoming events.{% endif %}</h2>
+    <p class="explore-empty-actions">
+      {% if filter_pills %}<a class="btn btn--ghost" href="{{ clear_filters_url }}">Clear filters</a>{% endif %}
+      <a class="btn btn--ghost" href="{% explore_url scope=None events_only=None %}">Show all events</a>
+      <a class="btn btn--primary" href="{% url 'event_create' %}">Create Event</a>
+    </p>
   {% elif state == 'no_matches' %}
     <h2>No parks or events match your filters. Try broadening your criteria.</h2>
     <p class="explore-empty-actions"><a class="btn btn--primary" href="{{ clear_filters_url }}">Clear filters</a></p>
