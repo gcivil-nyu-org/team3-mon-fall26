@@ -18,31 +18,104 @@
     if (!search.value.trim()) filtersForm.requestSubmit();
   });
   const dialog = root.querySelector('[data-park-dialog]');
-  // Keep real park-page links when scripts are disabled; enhance them to the shareable panel URL.
-  root.querySelectorAll('[data-park-quick-view]').forEach((link) => {
-    link.href = link.dataset.panelUrl;
-  });
-  // A selected park is ordinary URL state. Navigation persists it server-side,
-  // so sharing, refresh, no-JS and returning from another hub page agree.
-  function parkURL(id) {
-    const url = new URL(window.location.href);
-    url.searchParams.delete('page');
-    if (id) {
-      url.searchParams.set('park', id);
-      url.searchParams.set('panel', '1');
-    } else {
-      url.searchParams.delete('park');
-      url.searchParams.delete('panel');
-    }
+  const preview = root.querySelector('[data-park-preview-content]');
+  const closeButton = root.querySelector('[data-close-preview]');
+  const csrf = root.querySelector('[name="csrfmiddlewaretoken"]').value;
+  const history = window.history;
+  let panelId = dialog.dataset.panelId;
+  let panelTrigger;
+  let transition = 0;
+  let pendingPreview;
+  let saveQueue = Promise.resolve();
+
+  function parkURL(id, url = new URL(window.location.href)) {
+    if (id) url.searchParams.set('panel', String(id) === '1' ? '01' : id);
+    else url.searchParams.delete('panel');
     return url;
+  }
+  function panelIn(url) {
+    const id = url.searchParams.get('panel') || '';
+    return /^[0-9]{1,10}$/.test(id) && Number(id) > 0 ? String(Number(id)) : '';
+  }
+  // Normalize the old park=<id>&panel=1 form before editing this history entry.
+  const initialURL = new URL(window.location.href);
+  if (initialURL.searchParams.get('panel') === '1' && initialURL.searchParams.has('park')) {
+    initialURL.searchParams.delete('park');
+    history.replaceState(history.state, '', parkURL(panelId, initialURL));
   }
   if (dialog.open) {
     // Removing the server-rendered open attribute avoids queuing a close event.
     dialog.removeAttribute('open');
     dialog.showModal();
   }
-  root.querySelector('[data-close-preview]').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => window.location.assign(parkURL(null)));
+
+  function saveExplore(url, current) {
+    const save = saveQueue.then(async () => {
+      if (current !== transition) return;
+      const response = await fetch(root.dataset.stateUrl, {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'X-CSRFToken': csrf}, body: url.searchParams,
+      });
+      if (!response.ok || response.redirected) throw new Error('Could not save Explore state');
+    });
+    saveQueue = save.catch(() => {});
+    return save;
+  }
+
+  async function navigateExplore(url, {previewURL, trigger, fromHistory = false} = {}) {
+    const current = ++transition;
+    pendingPreview?.abort();
+    const nextPanel = panelIn(url);
+    let html;
+    try {
+      if (nextPanel && nextPanel !== panelId) {
+        const endpoint = new URL(previewURL || `parks/${nextPanel}/preview/`, url);
+        endpoint.search = url.search;
+        endpoint.searchParams.delete('panel');
+        pendingPreview = new AbortController();
+        const response = await fetch(endpoint, {signal: pendingPreview.signal, credentials: 'same-origin'});
+        if (!response.ok || response.redirected) throw new Error('Park preview unavailable');
+        html = await response.text();
+      }
+      if (current !== transition) return;
+      await saveExplore(url, current);
+      if (current !== transition) return;
+      if (!fromHistory) history.pushState(null, '', url);
+      if (nextPanel === panelId) return;
+      panelId = nextPanel;
+      if (nextPanel) {
+        preview.innerHTML = html;
+        if (!dialog.open) {
+          panelTrigger = trigger;
+          dialog.showModal();
+        }
+      } else {
+        if (dialog.open) dialog.close();
+        if (panelTrigger?.isConnected) panelTrigger.focus({preventScroll: true});
+        panelTrigger = undefined;
+      }
+    } catch (error) {
+      if (current !== transition || error.name === 'AbortError') return;
+      if (fromHistory) window.location.reload();
+      else window.location.assign(url);
+    }
+  }
+
+  function closePreview() {
+    return navigateExplore(parkURL(null));
+  }
+  closeButton.addEventListener('click', closePreview);
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); closePreview(); });
+  root.addEventListener('click', (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const link = event.target.closest('a');
+    if (link?.matches('[data-park-preview-url], .park-panel-close-link')) {
+      event.preventDefault();
+      if (link.matches('.park-panel-close-link')) closePreview();
+      else navigateExplore(new URL(link.href, window.location.href), {previewURL: link.dataset.parkPreviewUrl, trigger: link});
+    }
+  });
+  window.addEventListener('popstate', () => navigateExplore(new URL(window.location.href), {fromHistory: true}));
   if (root.dataset.view !== 'map') return;
   const shell = root.querySelector('[data-map-shell]');
   const container = root.querySelector('#explore-map');
@@ -97,13 +170,13 @@
         const tooltip = document.createElement('span');
         tooltip.textContent = `${park.name} · ${park.borough}`;
         marker.bindTooltip(tooltip);
-        marker.on('click', () => {
-          window.location.assign(parkURL(park.id));
-        });
+        marker.on('click', () => navigateExplore(parkURL(park.id), {
+          previewURL: park.preview_url, trigger: marker.getElement(),
+        }));
         return marker;
       });
       group.addLayers(markers);
-      const selectedPark = data.parks.find((park) => String(park.id) === root.dataset.park);
+      const selectedPark = data.parks.find((park) => String(park.id) === root.dataset.focusPark);
       if (selectedPark) map.setView([selectedPark.lat, selectedPark.lng], 15);
       else if (markers.length) map.fitBounds(group.getBounds(), {padding:[36,36], maxZoom:15});
       // US-2.5: zero pins shows the server-rendered empty state (pins already cleared above).

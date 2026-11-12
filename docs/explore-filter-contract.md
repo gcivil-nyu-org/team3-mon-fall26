@@ -171,11 +171,13 @@ scheduled upcoming events only. Availability uses
 membership is an EXISTS annotation, so badges do not add per-event queries.
 
 The desktop dialog is a side drawer; below 600px it becomes a bottom sheet.
-Map clicks and enhanced Quick view links use `park=<id>&panel=1`. The map focuses
-on the selected park, and the removable park pill displays its name. Closing the
-panel removes only the park/panel state. The existing hub session restores the
-open panel and repeated filters after visiting event or park pages or login.
-Without JavaScript, Quick view links directly to the full park page.
+Map clicks and Quick view links use `panel=<id>` for presentation. The separate
+`park=<id>` parameter still filters the results and adds a removable pill.
+Opening or closing the panel preserves that filter, the other filters, the map
+position and the current list page. Legacy `park=<id>&panel=1` links still open
+the panel. The hub session restores the open panel and repeated filters after
+visiting event or park pages or login. Without JavaScript, Quick view and its
+close link navigate to server-rendered versions of the same Explore page.
 
 The panel passes `?park=<id>` to Create Event; form pre-selection remains owned
 by #81. Ratings show "Not yet rated" until #42 is implemented. This feature does
@@ -184,4 +186,4 @@ not change event creation, joining, database models, or deployment settings.
 `events/test_park_panel.py` covers panel content, membership, availability and
 badges, URL/session restoration, missing data, escaping, invalid parks and a
 three-query budget that stays constant as organizers and RSVP rows increase.
-The JavaScript controller tests verify selected-park zoom and progressive links.
+The JavaScript controller tests verify panel navigation, history and legacy map focus.
