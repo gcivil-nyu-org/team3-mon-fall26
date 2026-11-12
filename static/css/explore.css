@@ -56,6 +56,7 @@
 @media(max-width:600px) { .explore-heading { align-items:flex-start; gap:16px; } .explore-heading>.btn { font-size:.75rem; white-space:nowrap; } .explore-heading p { font-size:.8rem; } .explore-park-grid { grid-template-columns:1fr; } #explore-map { height:480px; } .explore-map-legend { font-size:.6rem; padding:8px; gap:5px; left:8px; } .explore-toolbar p { font-size:.7rem; } .explore-switch a { padding:6px 14px; } }
 
 .explore-preview:not(:modal) { position:relative; margin:24px auto; height:auto; max-height:none; border:1px solid var(--border); border-radius:16px; }
+.explore-preview:not(:modal) .explore-preview-close { display:none; }
 .park-panel-section { margin-top:26px; }
 .park-panel-muted { color:var(--muted); list-style:none; }
 .park-panel-actions { display:grid; gap:10px; padding-top:20px; margin-top:20px; border-top:1px solid var(--border); }
