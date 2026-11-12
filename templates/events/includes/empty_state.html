@@ -5,25 +5,25 @@
     <h2>No upcoming events match your filters.</h2>
     <p>There are still places to play. Explore the parks or start a game.</p>
     <p class="explore-empty-actions">
-      <a class="btn btn--ghost" href="{{ clear_filters_url }}">Clear filters</a>
+      <a class="btn btn--ghost" href="{{ clear_filters_url }}" data-keep-explore-view>Clear filters</a>
       <a class="btn btn--ghost" href="{% explore_url view='list' tab='parks' %}">Show parks instead</a>
       <a class="btn btn--primary" href="{% url 'event_create' %}">Create Event</a>
     </p>
   {% elif state == 'no_my_events' %}
     <h2>{% if filter_pills %}None of your events match your filters.{% else %}You have no upcoming events.{% endif %}</h2>
     <p class="explore-empty-actions">
-      {% if filter_pills %}<a class="btn btn--ghost" href="{{ clear_filters_url }}">Clear filters</a>{% endif %}
-      <a class="btn btn--ghost" href="{% explore_url scope=None events_only=None %}">Show all events</a>
+      {% if filter_pills %}<a class="btn btn--ghost" href="{{ clear_filters_url }}" data-keep-explore-view>Clear filters</a>{% endif %}
+      <a class="btn btn--ghost" href="{% explore_url scope=None events_only=None %}" data-keep-explore-view>Show all events</a>
       <a class="btn btn--primary" href="{% url 'event_create' %}">Create Event</a>
     </p>
   {% elif state == 'no_matches' %}
     <h2>No parks or events match your filters. Try broadening your criteria.</h2>
-    <p class="explore-empty-actions"><a class="btn btn--primary" href="{{ clear_filters_url }}">Clear filters</a></p>
+    <p class="explore-empty-actions"><a class="btn btn--primary" href="{{ clear_filters_url }}" data-keep-explore-view>Clear filters</a></p>
   {% elif state == 'events_only_empty' %}
     <h2>No events match. Turn off 'Only parks with events' to see parks where you could host one.</h2>
     <p class="explore-empty-actions">
-      <a class="btn btn--primary" href="{% explore_url events_only=None %}">Turn off 'Only parks with events'</a>
-      <a class="btn btn--ghost" href="{{ clear_filters_url }}">Clear filters</a>
+      <a class="btn btn--primary" href="{% explore_url events_only=None %}" data-keep-explore-view>Turn off 'Only parks with events'</a>
+      <a class="btn btn--ghost" href="{{ clear_filters_url }}" data-keep-explore-view>Clear filters</a>
     </p>
   {% elif state == 'no_park_data' %}
     <h2>Park facility details are temporarily unavailable. Please try again shortly.</h2>
@@ -33,7 +33,7 @@
     <p>You can still explore the list below.</p>
     <p class="explore-empty-actions">
       <button class="btn btn--ghost" type="button" data-map-retry>Try again</button>
-      <a class="btn btn--primary" href="{% explore_url view='list' %}">Switch to List</a>
+      <a class="btn btn--primary" href="{% explore_url view='list' page=page_obj.number %}" data-explore-view="list">Switch to List</a>
     </p>
   {% endif %}
 </{{ tag|default:'div' }}>

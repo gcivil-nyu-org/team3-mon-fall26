@@ -225,23 +225,45 @@ class ParkPanelTests(TestCase):
         self.assertEqual(closed['zip'], ['11211', '11222'])
         self.assertEqual((closed['view'], closed['tab']), (['map'], ['parks']))
 
-    def test_selected_park_has_named_pill_and_limits_every_view(self):
+    def test_legacy_panel_link_opens_without_filtering_results(self):
         self.event()
+        total = Park.objects.filter(is_retired=False).count()
         for view, tab in (('map', 'events'), ('list', 'events'), ('list', 'parks')):
             with self.subTest(view=view, tab=tab):
                 response = self.client.get(f'/events/?park={self.park.pk}&panel=1&view={view}&tab={tab}')
-                self.assertEqual(response.context['park_total'], 1)
+                self.assertEqual(response.context['park_total'], total)
                 self.assertEqual(response.context['event_total'], 1)
-                self.assertContains(response, 'Park: Panel Park')
+                self.assertEqual(response.context['selected_park'], self.park)
+                self.assertIsNone(response.context['filters']['park'])
                 self.assertContains(response, 'aria-label="Park quick view" open')
 
-    def test_no_js_quick_view_links_to_full_park_page(self):
+    def test_no_js_quick_view_opens_server_rendered_panel(self):
         response = self.client.get('/events/?view=list&tab=parks&zip=11211&zip=11222')
         html = response.content.decode()
-        link = re.search(r'<a class="explore-quick-view"[^>]+>', html).group()
-        self.assertIn(f'href="/parks/{self.park.pk}/"', link)
-        self.assertIn(f'park={self.park.pk}&amp;panel=1', link)
-        self.assertIn('data-park-quick-view', link)
+        link = re.search(r'<a class="explore-quick-view" href="([^"]+)"[^>]+>', html).group(1)
+        preview = self.client.get('/events/' + link.replace('&amp;', '&'))
+        self.assertIn('selected_park', preview.context)
+        self.assertIsNone(preview.context['filters']['park'])
+
+    def test_explicit_park_filter_survives_panel_and_close(self):
+        response = self.client.get('/events/', {'park': self.park.pk, 'panel': f'{self.park.pk:02d}'})
+        self.assertEqual(response.context['selected_park'], self.park)
+        self.assertEqual(response.context['park_total'], 1)
+        closed = self.client.get(response.context['close_panel_url'])
+        self.assertEqual(closed.context['filters']['park'], self.park.pk)
+        self.assertNotIn('selected_park', closed.context)
+
+    def test_interactive_panel_updates_return_state(self):
+        state_url = reverse('explore_state')
+        self.assertEqual(self.client.get(state_url).status_code, 405)
+        response = self.client.post(state_url, {'panel': self.park.pk, 'zip': ['11211', '11222'], 'view': 'list'})
+        self.assertEqual(response.status_code, 204)
+        query = parse_qs(self.client.session[EXPLORE_SESSION_KEY])
+        self.assertEqual(int(query['panel'][0]), self.park.pk)
+        self.assertEqual(query['zip'], ['11211', '11222'])
+        self.assertNotIn('park', query)
+        self.assertEqual(self.client.post(state_url, {'view': 'list'}).status_code, 204)
+        self.assertNotIn('panel', parse_qs(self.client.session[EXPLORE_SESSION_KEY]))
 
     def test_invalid_retired_or_mismatched_park_cannot_open_a_panel(self):
         retired = Park.objects.create(gispropnum='PANEL-OLD', name='Retired', borough='B', is_retired=True)

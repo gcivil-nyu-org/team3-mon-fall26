@@ -4,7 +4,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Prefetch, Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -16,7 +16,7 @@ from parks.views import facility_groups, with_availability
 
 from .forms import EventCreateForm, EventUpdateForm
 from .hosting import HostPlayingError, host_playing_error, set_host_playing
-from .hub import remember_explore
+from .hub import positive_url_number, remember_explore, split_panel
 from .models import Event, EventStatus, MESSAGE_MAX_LENGTH, Message, RSVP, RSVPStatus
 from .explore import (
     configure_filter_form,
@@ -116,7 +116,8 @@ class EventListView(ListView):
     paginate_by = 20
 
     def dispatch(self, request, *args, **kwargs):
-        self.filter_form, self.filters = parse_filters(request.GET)
+        params, self.panel_id, self.legacy_panel = split_panel(request.GET)
+        self.filter_form, self.filters = parse_filters(params)
         redirect = personal_scope_redirect(request, self.filters)
         return redirect or super().dispatch(request, *args, **kwargs)
 
@@ -133,9 +134,6 @@ class EventListView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         params = filter_params(self.filters)
-        panel = bool(self.filters['park'] and self.request.GET.get('panel') == '1')
-        if panel:
-            params['panel'] = '1'
         configure_filter_form(self.filter_form, self.filters)
         if self.filters['tab'] == 'parks':
             context['parks'] = context['object_list']
@@ -164,17 +162,22 @@ class EventListView(ListView):
             map_empty_state=map_state,
             clear_filters_url=clear_filters_url(self.filters),
         )
-        if panel:
+        selected = None
+        page = context['page_obj'].number
+        if self.panel_id:
             selected = (
                 displayed_parks(self.filters, self.request.user)
+                .filter(pk=self.panel_id)
                 .with_review_summary()
                 .prefetch_related(Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active')))
                 .first()
             )
             if selected:
-                context.update(park_preview_context(selected, self.filters, self.request.user))
+                context.update(park_preview_context(selected, self.filters, self.request.user, page=page))
                 context['selected_park'] = selected
-        remember_explore(self.request, self.filters, context['page_obj'].number, panel=panel)
+                if self.legacy_panel:
+                    context['focus_park'] = selected.pk
+        remember_explore(self.request, self.filters, page, panel_id=selected.pk if selected else None)
         return context
 
 
@@ -255,10 +258,25 @@ def explore_park_preview(request, pk):
         .prefetch_related(Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active'))),
         pk=pk,
     )
-    return render(request, 'events/includes/park_preview.html', park_preview_context(park, filters, request.user))
+    page = positive_url_number(request.GET.get('page', '')) or 1
+    return render(request, 'events/includes/park_preview.html', park_preview_context(park, filters, request.user, page))
 
 
-def park_preview_context(park, filters, user):
+@require_POST
+def explore_state(request):
+    """Persist validated Explore state after a browser history change."""
+    params, panel_id, _ = split_panel(request.POST)
+    _, filters = parse_filters(params)
+    if filters['scope'] != 'all' and not request.user.is_authenticated:
+        return HttpResponse(status=403)
+    if panel_id and not displayed_parks(filters, request.user).filter(pk=panel_id).exists():
+        return HttpResponse(status=404)
+    page = positive_url_number(params.get('page', '')) or 1
+    remember_explore(request, filters, page, panel_id=panel_id)
+    return HttpResponse(status=204)
+
+
+def park_preview_context(park, filters, user, page=1):
     params = filter_params(filters)
     params['park'] = str(park.pk)
     params['view'] = 'list'
@@ -268,7 +286,8 @@ def park_preview_context(park, filters, user):
     )
     park_events = event_cards(with_viewer_attending(events, user), user)
     close_params = filter_params(filters)
-    close_params.pop('park', None)
+    if page > 1:
+        close_params['page'] = str(page)
     return {
         'park': park,
         'facility_groups': facility_groups(park.facilities.all()),
