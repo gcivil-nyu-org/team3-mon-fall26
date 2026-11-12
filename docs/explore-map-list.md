@@ -77,6 +77,10 @@ server. The old `park=<id>&panel=1` links still open the panel, and older
 Show on map links also center it. The canonical spelling for park ID 1 is
 `panel=01` to distinguish it from the legacy flag beside a park filter.
 See events at this park applies the `park` filter with no panel.
+Map/List uses the same history and state update. Both views render from the same
+filters and page. Leaflet initializes when Map is first shown and stays mounted
+while List is open. With JavaScript disabled, the view links navigate normally
+and the Map page shows the list fallback.
 
 The basic server-rendered controls and backend predicates establish the shared
 interface. Coordinate with the owners of #18/#19/#70/#75/#76 before replacing

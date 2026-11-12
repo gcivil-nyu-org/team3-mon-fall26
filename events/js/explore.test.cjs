@@ -14,7 +14,7 @@ function element() {
 }
 
 async function controller({data, reject = false, leaflet = true, selected = false, mapEmpty = false,
-  noParkData = false} = {}) {
+  noParkData = false, initialView = 'map'} = {}) {
   const nodes = {};
   const state = {reject, clears: 0, fetches: 0, maps: 0, saves: [], previews: []};
   for (const key of ['.explore-filters', '[data-park-dialog]', '[data-close-preview]',
@@ -24,7 +24,8 @@ async function controller({data, reject = false, leaflet = true, selected = fals
   if (mapEmpty) nodes['[data-map-empty]'] = element();  // server-rendered US-2.5 empty state
   const checkbox = element();
   let submits = 0;
-  nodes['.explore-filters'].querySelector = () => checkbox;
+  const viewInput = {value: initialView};
+  nodes['.explore-filters'].querySelector = key => key === 'input[name="view"]' ? viewInput : checkbox;
   const autosubmitFields = [element(), element()];  // borough select, zip select (US-2.3)
   nodes['.explore-filters'].querySelectorAll = (key) => key === '[data-autosubmit]' ? autosubmitFields : [];
   nodes['.explore-filters'].requestSubmit = () => submits++;
@@ -43,15 +44,21 @@ async function controller({data, reject = false, leaflet = true, selected = fals
   // Like the real DOM, a missing element is null.
   const quickView = {href: '?view=map&zip=11211&zip=11222&page=2&panel=7', dataset: {parkPreviewUrl: '/events/parks/7/preview/'},
     matches: selector => selector.includes('[data-park-preview-url]')};
-  const root = {...element(), dataset: {view: 'map', focusPark: selected ? '7' : '', stateUrl: '/events/explore/state/'},
-    querySelector: key => nodes[key] ?? null};
+  const viewLinks = ['map', 'list'].map(view => ({
+    href: `?view=${view}&zip=11211&zip=11222&page=2`, dataset: {exploreView: view},
+    matches: selector => selector === '[data-explore-view]',
+    setAttribute(name, value) {this[name] = value;}, removeAttribute(name) {delete this[name];},
+  }));
+  const root = {...element(), dataset: {view: initialView, focusPark: selected ? '7' : '', stateUrl: '/events/explore/state/'},
+    querySelector: key => nodes[key] ?? null,
+    querySelectorAll: key => key === '[data-explore-view]' ? viewLinks : [quickView]};
   const navigations = [];
   const markers = [];
   let clusterOptions;
   let fits = 0;
   let tileError;
   const map = {setView(position, zoom) {state.mapView = {position, zoom}; return this;},
-    fitBounds() {fits++;}, eachLayer() {}};
+    fitBounds() {fits++;}, eachLayer() {}, invalidateSize(options) {state.invalidated = options;}};
   const group = {addTo() {return this;}, clearLayers() {state.clears++;}, addLayers() {}, getBounds() {return {};}};
   const L = {
     map: () => { state.maps++; return map; },
@@ -67,7 +74,7 @@ async function controller({data, reject = false, leaflet = true, selected = fals
     }
   };
   const window = {...element(), L: leaflet ? L : undefined, location: {
-    href: 'http://localhost/events/?view=map&zip=11211&zip=11222&page=2' + (selected ? '&park=7&panel=1' : ''),
+    href: `http://localhost/events/?view=${initialView}&zip=11211&zip=11222&page=2` + (selected ? '&park=7&panel=1' : ''),
     assign(url) {navigations.push(new URL(url));}, reload() {navigations.push(new URL(this.href));}}};
   const entries = [window.location.href];
   let index = 0;
@@ -96,8 +103,12 @@ async function controller({data, reject = false, leaflet = true, selected = fals
       return {ok: true, redirected: false, json: async () => data || {parks: [], unmapped_event_count: 0}};
     }});
   await new Promise(resolve => setImmediate(resolve));
+  const clickView = view => root.listeners.click({button: 0, target: {
+    closest: () => viewLinks.find(link => link.dataset.exploreView === view),
+  }, preventDefault() {}});
   return {nodes, markers, clusterOptions, fits, navigations, checkbox, dialog, autosubmitFields,
-    submits: () => submits, tileError, state, fitCount: () => fits, quickView, root, window, historyStep};
+    submits: () => submits, tileError, state, fitCount: () => fits, quickView, root, window, historyStep,
+    viewInput, viewLinks, clickView};
 }
 
 const parks = [
@@ -159,6 +170,41 @@ test('Quick view intercepts its real link and fetches the preview', async () => 
   assert.equal(ui.dialog.open, true);
   assert.equal(ui.state.previews[0].pathname, '/events/parks/7/preview/');
   assert.deepEqual(ui.navigations, []);
+});
+
+test('Map/List and Back/Forward reuse the map and preserve the filter and page', async () => {
+  const ui = await controller({data: {parks, unmapped_event_count: 0}});
+  await ui.clickView('list');
+  assert.equal(ui.nodes['[data-map-shell]'].hidden, true);
+  assert.equal(ui.nodes['[data-list-fallback]'].hidden, false);
+  assert.equal(ui.viewInput.value, 'list');
+  assert.equal(ui.viewLinks[1]['aria-current'], 'page');
+  assert.equal(ui.state.saves.at(-1).get('view'), 'list');
+  assert.equal(ui.state.saves.at(-1).get('page'), '2');
+  assert.deepEqual(ui.state.saves.at(-1).getAll('zip'), ['11211', '11222']);
+  await ui.historyStep(-1);
+  assert.equal(ui.nodes['[data-map-shell]'].hidden, false);
+  assert.equal(ui.nodes['[data-list-fallback]'].hidden, true);
+  assert.equal(ui.state.invalidated.pan, false);
+  await ui.historyStep(1);
+  assert.equal(ui.viewInput.value, 'list');
+  await ui.clickView('map');
+  assert.equal(ui.viewInput.value, 'map');
+  assert.equal(ui.state.fetches, 1);
+  assert.equal(ui.state.maps, 1);
+  assert.equal(ui.fitCount(), 1);
+  assert.deepEqual(ui.navigations, []);
+});
+
+test('a direct List link starts the map only when Map is first shown', async () => {
+  const ui = await controller({initialView: 'list', data: {parks, unmapped_event_count: 0}});
+  assert.equal(ui.state.maps, 0);
+  assert.equal(ui.nodes['[data-map-shell]'].hidden, true);
+  await ui.clickView('map');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(ui.state.maps, 1);
+  assert.equal(ui.nodes['[data-map-shell]'].hidden, false);
+  assert.equal(ui.nodes['[data-list-fallback]'].hidden, true);
 });
 
 test('unmapped notice links to Events list without losing filters', async () => {

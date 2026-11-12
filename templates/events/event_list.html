@@ -23,15 +23,14 @@
     <p><strong>{{ event_total }}</strong> {% if filters.scope == 'all' %}upcoming{% else %}matching{% endif %} event{{ event_total|pluralize }} <span aria-hidden="true">·</span>
       <strong>{{ park_total }}</strong> park{{ park_total|pluralize }}</p>
     <nav class="explore-switch" aria-label="Results view">
-      <a href="{% explore_url view='map' %}" {% if filters.view == 'map' %}aria-current="page"{% endif %}>Map</a>
-      <a href="{% explore_url view='list' %}" {% if filters.view == 'list' %}aria-current="page"{% endif %}>List</a>
+      <a href="{% explore_url view='map' page=page_obj.number %}" data-explore-view="map" {% if filters.view == 'map' %}aria-current="page"{% endif %}>Map</a>
+      <a href="{% explore_url view='list' page=page_obj.number %}" data-explore-view="list" {% if filters.view == 'list' %}aria-current="page"{% endif %}>List</a>
     </nav>
   </div>
   {% if not has_park_data %}
   {# US-2.5: no active parks at all (e.g. the NYC Open Data sync hasn't run) - no empty map or lists. #}
   {% include "events/includes/empty_state.html" with state="no_park_data" %}
   {% else %}
-  {% if filters.view == 'map' %}
   <div class="explore-map-shell" data-map-shell hidden>
     <div id="explore-map" role="region" aria-label="NYC parks and matching events" data-map-url="{{ map_url }}"></div>
     <div class="explore-map-legend"><span class="legend-dot legend-dot--active"></span> Matching events
@@ -41,6 +40,7 @@
     {% if map_empty_state %}{% include "events/includes/empty_state.html" with state=map_empty_state map=True %}{% endif %}
   </div>
   {% include "events/includes/empty_state.html" with state="map_error" hidden=True %}
+  {% if filters.view == 'map' %}
   <noscript><p class="explore-notice">The interactive map needs JavaScript. Showing List view instead.</p></noscript>
   {% endif %}
   <div data-list-fallback>

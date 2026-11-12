@@ -81,6 +81,7 @@
       await saveExplore(url, current);
       if (current !== transition) return;
       if (!fromHistory) history.pushState(null, '', url);
+      renderView(url);
       if (nextPanel === panelId) return;
       panelId = nextPanel;
       if (nextPanel) {
@@ -109,6 +110,11 @@
   root.addEventListener('click', (event) => {
     if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     const link = event.target.closest('a');
+    if (link?.matches('[data-explore-view]')) {
+      event.preventDefault();
+      if (link.dataset.exploreView === root.dataset.view) return;
+      return navigateExplore(new URL(link.href, window.location.href));
+    }
     if (link?.matches('[data-park-preview-url], .park-panel-close-link')) {
       event.preventDefault();
       if (link.matches('.park-panel-close-link')) closePreview();
@@ -116,47 +122,99 @@
     }
   });
   window.addEventListener('popstate', () => navigateExplore(new URL(window.location.href), {fromHistory: true}));
-  if (root.dataset.view !== 'map') return;
   const shell = root.querySelector('[data-map-shell]');
   const container = root.querySelector('#explore-map');
   const fallback = root.querySelector('[data-list-fallback]');
   const errorBox = root.querySelector('[data-map-error]');
   const status = root.querySelector('[data-map-status]');
-  // US-2.5 no_park_data: the page renders a message instead of the map, so there is nothing to
-  // initialize. Exit before the Leaflet check, the error handlers or any map data request.
-  if (!shell || !container) return;
-  // US-2.5: the error replaces the (blank) map so it's the first thing seen; the list stays usable.
-  function fail() { errorBox.hidden = false; fallback.hidden = false; status.hidden = true; shell.hidden = true; }
-  // Without Leaflet there is no map to retry in place, so Try again reloads the page.
-  function failHard() { fail(); root.querySelector('[data-map-retry]').addEventListener('click', () => window.location.reload()); }
-  if (!window.L || !L.markerClusterGroup) { failHard(); return; }
-  shell.hidden = false;
+  const viewLinks = root.querySelectorAll('[data-explore-view]');
+  const viewInput = filtersForm.querySelector('input[name="view"]');
   let map;
   let group;
+  let mapFailed = false;
+  let mapReady = false;
+  let mapStarted = false;
+  let fitPending;
+
+  function updateMapVisibility() {
+    if (!shell) return;
+    const isMap = root.dataset.view === 'map';
+    shell.hidden = !isMap || mapFailed;
+    errorBox.hidden = !isMap || !mapFailed;
+    fallback.hidden = isMap && mapReady && !mapFailed;
+  }
+
+  function renderView(url) {
+    const view = url.searchParams.getAll('view').at(-1) === 'list' ? 'list' : 'map';
+    const changed = view !== root.dataset.view;
+    root.dataset.view = view;
+    viewInput.value = view;
+    viewLinks.forEach((link) => {
+      if (link.dataset.exploreView === view) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
+    if (changed) {
+      root.querySelectorAll('.explore-pill, .explore-clear, .discover-pages a, [data-keep-explore-view], [data-park-preview-url]')
+        .forEach((link) => {
+          const target = new URL(link.href, url);
+          target.searchParams.set('view', view);
+          link.href = target.href;
+        });
+    }
+    updateMapVisibility();
+    if (view === 'map' && shell && container) {
+      if (!mapStarted) initMap();
+      else if (changed && !mapFailed) {
+        map.invalidateSize({pan: false});
+        fitPending?.();
+        fitPending = undefined;
+      }
+    }
+  }
+
+  function fail() {
+    mapFailed = true;
+    status.hidden = true;
+    updateMapVisibility();
+  }
+
+  // Without Leaflet there is no map to retry in place, so Try again reloads the page.
+  function failHard() { fail(); root.querySelector('[data-map-retry]').addEventListener('click', () => window.location.reload()); }
   function icon(count, cluster = false) {
     const span = document.createElement('span');
     span.className = (cluster ? 'explore-cluster' : 'explore-pin') + (count > 0 ? ' is-active' : '');
     span.textContent = count > 0 ? String(count) : (cluster ? '○' : '');
     return L.divIcon({html: span, className: 'explore-marker', iconSize: cluster ? [46,46] : [30,30]});
   }
-  try {
-    map = L.map(container, {scrollWheelZoom: false}).setView([40.73, -73.94], 11);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).on('tileerror', fail).addTo(map);
-    group = L.markerClusterGroup({showCoverageOnHover: false, maxClusterRadius: 48,
-      iconCreateFunction: (cluster) => icon(cluster.getAllChildMarkers().reduce(
-        (sum, marker) => sum + marker.options.eventCount, 0), true)
-    }).addTo(map);
-  } catch (_) { failHard(); return; }
+  function initMap() {
+    mapStarted = true;
+    if (!window.L || !L.markerClusterGroup) { failHard(); return; }
+    try {
+      map = L.map(container, {scrollWheelZoom: false}).setView([40.73, -73.94], 11);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).on('tileerror', fail).addTo(map);
+      group = L.markerClusterGroup({showCoverageOnHover: false, maxClusterRadius: 48,
+        iconCreateFunction: (cluster) => icon(cluster.getAllChildMarkers().reduce(
+          (sum, marker) => sum + marker.options.eventCount, 0), true)
+      }).addTo(map);
+    } catch (_) { failHard(); return; }
+    root.querySelector('[data-map-retry]').addEventListener('click', () => {
+      mapFailed = false;
+      updateMapVisibility();
+      map.invalidateSize({pan: false});
+      map.eachLayer(layer => { if (layer instanceof L.TileLayer) layer.redraw(); });
+      load();
+    });
+    load();
+  }
   let mapRequest;
   async function load() {
     mapRequest?.abort();
     mapRequest = new AbortController();
     status.hidden = false;
     status.textContent = 'Loading parks…';
-    errorBox.hidden = true;
     try {
       const response = await fetch(container.dataset.mapUrl, {signal: mapRequest.signal, credentials: 'same-origin'});
       if (!response.ok || response.redirected) throw new Error('Map unavailable');
@@ -177,8 +235,12 @@
       });
       group.addLayers(markers);
       const selectedPark = data.parks.find((park) => String(park.id) === root.dataset.focusPark);
-      if (selectedPark) map.setView([selectedPark.lat, selectedPark.lng], 15);
-      else if (markers.length) map.fitBounds(group.getBounds(), {padding:[36,36], maxZoom:15});
+      const fit = () => {
+        if (selectedPark) map.setView([selectedPark.lat, selectedPark.lng], 15);
+        else if (markers.length) map.fitBounds(group.getBounds(), {padding:[36,36], maxZoom:15});
+      };
+      if (root.dataset.view === 'map' && !mapFailed) fit();
+      else fitPending = fit;
       // US-2.5: zero pins shows the server-rendered empty state (pins already cleared above).
       // Parks may still match but lack coordinates; the unmapped notice below links to List view.
       const emptyState = root.querySelector('[data-map-empty]');
@@ -198,11 +260,9 @@
         link.textContent = 'See them in List view.';
         unmapped.append(link);
       }
-      if (errorBox.hidden) fallback.hidden = true;
+      mapReady = true;
+      updateMapVisibility();
     } catch (error) { if (error.name !== 'AbortError') fail(); }
   }
-  root.querySelector('[data-map-retry]').addEventListener('click', () => { shell.hidden = false; map.invalidateSize?.(); map.eachLayer(layer => {
-    if (layer instanceof L.TileLayer) layer.redraw();
-  }); load(); });
-  load();
+  renderView(new URL(window.location.href));
 })();
