@@ -3,6 +3,8 @@
   <input type="hidden" name="view" value="{{ filters.view }}">
   <input type="hidden" name="tab" value="{{ filters.tab }}">
   {% if filters.park %}<input type="hidden" name="park" value="{{ filters.park }}">{% endif %}
+  {# US-4.8 (#117): keep ?phase= when the filters are submitted, until US-4.9 (#118) adds its control here. #}
+  {% for phase in filters.phase %}<input type="hidden" name="phase" value="{{ phase }}">{% endfor %}
   {# US-2.7 (#70): one keyword search for parks (name, address, cross-streets) and events (title, description, meeting spot). #}
   <div class="explore-search-row">
     <div class="explore-search"><label for="{{ filter_form.q.id_for_label }}">Search parks and events</label>{{ filter_form.q }}</div>

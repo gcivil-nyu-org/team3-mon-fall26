@@ -39,11 +39,17 @@ The existing feed presentation stays in place until the map/list PR lands.
 | `date_from`, `date_to` | Inclusive ISO date range; invalid/reversed ranges show a message and ignore both endpoints |
 | `skill` | Specific level also includes all-skill events |
 | `scope` | `all`, `mine`, `attending`, `hosting`; personal scopes force `events_only` and include future cancelled/removed events |
+| repeated `phase` | `upcoming`, `live`, `ended` (US-4.8 / #117); OR. None chosen means `upcoming` + `live`; unknown values are ignored. Public Explore only keeps games that ended in the last 30 days (`ENDED_WINDOW_DAYS`, by New York date); personal scopes keep every ended game. The JSON feed is always `upcoming` only. |
 | `events_only=1` | Only parks with a positive matching-event count |
 | `park` | Active park ID; invalid, unknown or retired IDs ignored |
 | `view`, `tab` | Preserved state: map/list, events/parks; defaults map/events. Presentation follows in the next PR. |
 
-Public events are upcoming scheduled events at active parks. Displayed parks
+Public events are scheduled events at active parks in the chosen phases (upcoming
+and live by default). A game is upcoming until its start, live until its end time
+that day, then ended (`phase_q()` in `events/models.py`). Results are ordered by
+`phase_ordering()` in SQL: live first, then upcoming soonest first, then ended most
+recent first, so pages stay in order. Cancelled and removed games are in no phase;
+personal scopes show them alongside `upcoming` only. Displayed parks
 are active parks independently matching park filters **plus** parks hosting a
 matching event. Date/skill affect event counts, not independent park membership.
 All counts come from this exact matching-event queryset. EXISTS and a correlated
@@ -162,11 +168,10 @@ The existing `explore_park_preview` endpoint and `park_preview_context()` now
 render the full panel. It uses the same validated filters, active facilities,
 and `events/_park_events.html` as the park page from #94/#95. The panel uses
 `matching_events()` without an extra status filter, so its membership and count
-agree with the map and list. Public Explore only shows scheduled upcoming
-events. Personal scopes also retain the viewer's cancelled/removed future
-events, labelled with their status; ownership or an active RSVP is still required,
-and already-started events stay hidden. The full park page continues to show
-scheduled upcoming events only. Availability uses
+agree with the map and list. Public Explore shows scheduled games in the chosen
+phases (live and upcoming by default, see `phase` above). Personal scopes also retain the viewer's cancelled/removed future
+events, labelled with their status; ownership or an active RSVP is still required.
+The full park page shows live and upcoming games (US-4.8 / #117). Availability uses
 `with_confirmed_players()` and the park-page availability helper. Active RSVP
 membership is an EXISTS annotation, so badges do not add per-event queries.
 

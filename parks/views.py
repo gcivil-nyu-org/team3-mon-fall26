@@ -7,7 +7,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.generic import DetailView
 
-from events.models import Event
+from events.models import DEFAULT_PHASES, Event
 
 from .forms import ReviewForm
 from .models import Facility, Park
@@ -81,7 +81,8 @@ class ParkDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         events = (
-            Event.objects.upcoming()
+            # US-4.8 (#117): live games stay listed until they end; ended ones drop off.
+            Event.objects.in_phases(DEFAULT_PHASES)
             .filter(park=self.object)
             .with_confirmed_players()
             .select_related('organizer__profile')

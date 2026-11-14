@@ -102,13 +102,13 @@ class ParkPanelTests(TestCase):
         self.assertContains(response, 'Meet at Court 2')
         self.assertContains(response, 'Hosted by @panel-host')
 
-    def test_filters_agree_with_map_and_exclude_hidden_or_started_events(self):
+    def test_filters_agree_with_map_and_exclude_hidden_or_ended_events(self):
         kept = self.event(title='Matching hoops')
         for changes in (
             {'activity': 'tennis'},
             {'status': 'cancelled'},
             {'status': 'removed'},
-            {'date': self.now.date(), 'time': datetime.time(11)},
+            {'date': self.now.date(), 'time': datetime.time(9), 'end_time': datetime.time(10)},
             {'park': self.other},
             {'skill_level': 'competitive'},
         ):
@@ -133,9 +133,10 @@ class ParkPanelTests(TestCase):
             RSVP.objects.create(event=event, user=self.viewer)
         self.event(title='Unrelated private event', status='cancelled')
         self.event(title='Different sport', organizer=self.viewer, activity='tennis', status='cancelled')
-        self.event(title='Started hosted event', organizer=self.viewer, date=self.now.date(), time=datetime.time(11))
-        started = self.event(title='Started attended event', date=self.now.date(), time=datetime.time(11))
-        RSVP.objects.create(event=started, user=self.viewer)
+        ended_today = {'date': self.now.date(), 'time': datetime.time(9), 'end_time': datetime.time(10)}
+        self.event(title='Ended hosted event', organizer=self.viewer, **ended_today)
+        ended = self.event(title='Ended attended event', **ended_today)
+        RSVP.objects.create(event=ended, user=self.viewer)
 
         for scope, expected in (('hosting', hosted), ('attending', attending), ('mine', hosted + attending)):
             with self.subTest(scope=scope):

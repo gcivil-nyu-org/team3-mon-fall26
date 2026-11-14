@@ -4,6 +4,7 @@ Filter stories extend this module and includes/explore_filters.html rather than
 implementing a separate queryset for each presentation (US-2.1 / US-2.2).
 """
 
+import datetime
 import re
 from functools import reduce
 from operator import or_
@@ -16,7 +17,21 @@ from django.utils import timezone
 
 from parks.models import Borough, Facility, Park, comma_token_q
 
-from .models import ACTIVITY_FACILITY_KEYS, Activity, Event, NYC_TZ, RSVP, RSVPStatus, SkillLevel
+from .models import (
+    ACTIVITY_FACILITY_KEYS,
+    DEFAULT_PHASES,
+    ENDED_WINDOW_DAYS,
+    NYC_TZ,
+    RSVP,
+    Activity,
+    Event,
+    EventPhase,
+    EventStatus,
+    RSVPStatus,
+    SkillLevel,
+    phase_ordering,
+    phase_q,
+)
 
 
 class ValidChoices(forms.MultipleChoiceField):
@@ -104,6 +119,9 @@ class ExploreFilterForm(forms.Form):
         choices=[('all', 'All events'), ('mine', 'All mine'), ('attending', 'Attending'), ('hosting', 'Hosting')],
     )
     events_only = forms.BooleanField(required=False, label='Only parks with events')
+    # US-4.8 (#117): repeated ?phase= (upcoming, live, ended). None chosen means upcoming and live.
+    # The control for it is US-4.9 (#118).
+    phase = ValidChoices(required=False, choices=EventPhase.choices, label='Phase')
     park = forms.IntegerField(required=False, min_value=1)
     view = forms.ChoiceField(required=False, choices=[('map', 'Map'), ('list', 'List')])
     tab = forms.ChoiceField(required=False, choices=[('events', 'Events'), ('parks', 'Parks')])
@@ -134,7 +152,7 @@ def parse_filters(params):
     form = ExploreFilterForm(params)
     form.is_valid()
     filters = {name: form.cleaned_data.get(name) for name in form.fields}
-    for name in ('zip', 'sport', 'facility'):
+    for name in ('zip', 'sport', 'facility', 'phase'):
         filters[name] = filters.get(name) or []
     filters['view'] = filters.get('view') or 'map'
     filters['tab'] = filters.get('tab') or 'events'
@@ -221,16 +239,28 @@ def park_location_filters(parks, filters):
     return parks
 
 
+def selected_phases(filters):
+    return filters.get('phase') or list(DEFAULT_PHASES)
+
+
 def matching_events(filters, user=None):
     """One definition of event membership; presentation code adds its own eager loading."""
-    events = Event.objects.all()
+    now = timezone.now()
+    phases = selected_phases(filters)
+    membership = Q(status=EventStatus.SCHEDULED) & reduce(or_, (phase_q(phase, now) for phase in phases))
     if filters.get('scope', 'all') == 'all':
-        events = events.upcoming()
+        events = Event.objects.filter(membership)
+        # US-4.8 (#117): public Explore drops games that ended more than 30 days ago (New York date).
+        window_start = now.astimezone(NYC_TZ).date() - datetime.timedelta(days=ENDED_WINDOW_DAYS)
+        events = events.filter(date__gte=window_start)
     else:
-        now = timezone.now().astimezone(NYC_TZ)
-        events = events.filter(Q(date__gt=now.date()) | Q(date=now.date(), time__gte=now.time()))
         if user is None or not user.is_authenticated:
-            return events.none()
+            return Event.objects.none()
+        # My Events also keep cancelled and removed games that hadn't started (#76). They're in no phase,
+        # so they show alongside upcoming games and never with only live or ended ones.
+        if EventPhase.UPCOMING in phases:
+            membership |= ~Q(status=EventStatus.SCHEDULED) & phase_q(EventPhase.UPCOMING, now)
+        events = Event.objects.filter(membership)
         attending = RSVP.objects.filter(event_id=OuterRef('pk'), user=user, status=RSVPStatus.ACTIVE)
         if filters['scope'] == 'hosting':
             events = events.filter(organizer=user)
@@ -262,7 +292,7 @@ def matching_events(filters, user=None):
             events = events.filter(date__lte=filters['date_to'])
     if filters.get('skill'):
         events = events.filter(skill_level__in=[filters['skill'], SkillLevel.ALL])
-    return events.order_by('date', 'time', 'pk')
+    return events.order_by(*phase_ordering(now))
 
 
 def displayed_parks(filters, user=None):

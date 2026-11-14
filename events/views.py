@@ -17,7 +17,7 @@ from parks.views import facility_groups, with_availability
 from .forms import EventCreateForm, EventUpdateForm
 from .hosting import HostPlayingError, host_playing_error, set_host_playing
 from .hub import remember_explore
-from .models import Event, EventStatus, MESSAGE_MAX_LENGTH, Message, RSVP, RSVPStatus
+from .models import Event, EventPhase, EventStatus, MESSAGE_MAX_LENGTH, Message, RSVP, RSVPStatus
 from .explore import (
     configure_filter_form,
     displayed_parks,
@@ -27,12 +27,6 @@ from .explore import (
     matching_events,
     parse_filters,
 )
-
-
-def filter_events(params, user=None):
-    """Compatibility entry point; every Explore surface uses the shared engine."""
-    _, filters = parse_filters(params)
-    return matching_events(filters, user).select_related('park', 'organizer'), filters
 
 
 def personal_scope_redirect(request, filters):
@@ -212,7 +206,9 @@ def upcoming_events_api(request):
     redirect = personal_scope_redirect(request, filters)
     if redirect:
         return redirect
-    events, _ = filter_events(request.GET, request.user)
+    # US-4.8 (#117): the feed lists upcoming games only, whatever ?phase= says.
+    filters['phase'] = [EventPhase.UPCOMING]
+    events = matching_events(filters, request.user).select_related('park', 'organizer')
     results = [serialize_event(event) for event in events[:200]]
     return JsonResponse({'count': len(results), 'results': results})
 
@@ -517,7 +513,7 @@ class EventDetailView(DetailView):
             regular_messages=regular_messages,
             has_discussion_messages=announcement_messages.exists() or regular_messages.exists(),
             latest_discussion_message_id=latest_discussion_message_id,
-            can_post_message=event.status == EventStatus.SCHEDULED,
+            can_post_message=event.discussion_open,
             message_max_length=MESSAGE_MAX_LENGTH,
             confirmed_players=confirmed_players,
             spots_remaining=(None if event.capacity is None else max(event.capacity - confirmed_players, 0)),
@@ -548,7 +544,7 @@ def post_event_message(request, pk):
 
     with transaction.atomic():
         event = get_object_or_404(Event.objects.select_for_update(), pk=pk)
-        if event.status != EventStatus.SCHEDULED:
+        if not event.discussion_open:
             error = 'Discussion is closed for this event.'
             if wants_json:
                 return JsonResponse({'error': error}, status=409)
@@ -590,7 +586,7 @@ def event_discussion_updates(request, pk):
     except ValueError:
         return JsonResponse({'error': 'Invalid message cursor.'}, status=400)
 
-    if event.status != EventStatus.SCHEDULED:
+    if not event.discussion_open:
         return JsonResponse({'messages': [], 'latest_id': after_id, 'discussion_open': False})
 
     new_messages = (

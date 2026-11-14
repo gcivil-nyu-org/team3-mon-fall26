@@ -69,15 +69,17 @@ class ParkUpcomingEventsTests(TestCase):
         ):
             self.assertContains(response, text)
 
-    def test_hides_started_cancelled_removed_and_other_parks_events(self):
+    def test_lists_live_then_upcoming_and_hides_ended_cancelled_removed_and_other_parks_events(self):
         kept = self.event()
-        self.event(title='Started an hour ago', date=self.now.date(), time=datetime.time(11))
+        # US-4.8 (#117): a game that's on right now stays listed, first, until it ends.
+        live = self.event(title='Started an hour ago', date=self.now.date(), time=datetime.time(11))
+        self.event(title='Over this morning', date=self.now.date(), time=datetime.time(9), end_time=datetime.time(10))
         self.event(title='Called off', status=EventStatus.CANCELLED)
         self.event(title='Taken down', status=EventStatus.REMOVED)
         self.event(title='Elsewhere', park=self.other_park)
         response = self.page()
-        self.assertEqual(response.context['park_events'], [kept])
-        for title in ('Started an hour ago', 'Called off', 'Taken down', 'Elsewhere'):
+        self.assertEqual(response.context['park_events'], [live, kept])
+        for title in ('Over this morning', 'Called off', 'Taken down', 'Elsewhere'):
             self.assertNotContains(response, title)
 
     def test_availability_counts_active_rsvps_and_a_playing_host(self):

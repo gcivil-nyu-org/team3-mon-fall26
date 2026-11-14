@@ -90,6 +90,52 @@ class RSVPStatus(models.TextChoices):
     REMOVED = 'removed', 'Removed by the organizer'
 
 
+class EventPhase(models.TextChoices):
+    """Where a scheduled game is in its day (US-4.8). Cancelled and removed games are in no phase."""
+
+    UPCOMING = 'upcoming', 'Upcoming'
+    LIVE = 'live', 'Live'
+    ENDED = 'ended', 'Ended'
+
+
+# Explore shows upcoming and live games unless ?phase= asks for others (US-4.8, #117).
+DEFAULT_PHASES = (EventPhase.UPCOMING, EventPhase.LIVE)
+# Public Explore keeps ended games for this many days, counted back from today's New York date.
+ENDED_WINDOW_DAYS = 30
+
+
+def phase_q(phase, now=None):
+    """A filter for events in `phase` at `now` (New York time), by time only; callers add the status check.
+
+    Games end on the day they start (#116), so a game is live from its start until its end time today.
+    """
+    now = (now or timezone.now()).astimezone(NYC_TZ)
+    today, clock = now.date(), now.time()
+    if phase == EventPhase.UPCOMING:
+        return models.Q(date__gt=today) | models.Q(date=today, time__gte=clock)
+    if phase == EventPhase.LIVE:
+        return models.Q(date=today, time__lt=clock, end_time__gt=clock)
+    return models.Q(date__lt=today) | models.Q(date=today, end_time__lte=clock)
+
+
+def phase_ordering(now=None):
+    """Live first, then upcoming soonest first, then ended most recent first. Done in SQL so pages stay right."""
+    started = ~phase_q(EventPhase.UPCOMING, now)
+    not_ended = ~phase_q(EventPhase.ENDED, now)
+    rank = models.Case(
+        models.When(started & not_ended, then=models.Value(0)),
+        models.When(not_ended, then=models.Value(1)),
+        default=models.Value(2),
+        output_field=models.IntegerField(),
+    )
+    soonest = [
+        models.Case(models.When(not_ended, then=models.F(field)), output_field=output()).asc()
+        for field, output in (('date', models.DateField), ('time', models.TimeField))
+    ]
+    # Ended games have no "soonest" keys, so they fall through to most recent first.
+    return [rank.asc(), *soonest, models.F('date').desc(), models.F('time').desc(), 'pk']
+
+
 class EventQuerySet(models.QuerySet):
     def scheduled(self):
         """Events that have not been cancelled or removed."""
@@ -97,13 +143,27 @@ class EventQuerySet(models.QuerySet):
 
     def upcoming(self, now=None):
         """Scheduled events starting now or later (New York time), soonest first."""
-        now = (now or timezone.now()).astimezone(NYC_TZ)
-        today = now.date()
-        return (
-            self.scheduled()
-            .filter(models.Q(date__gt=today) | models.Q(date=today, time__gte=now.time()))
-            .order_by('date', 'time', 'id')
-        )
+        return self.scheduled().filter(phase_q(EventPhase.UPCOMING, now)).order_by('date', 'time', 'id')
+
+    def live(self, now=None):
+        """Scheduled events that have started and haven't ended yet (US-4.8)."""
+        return self.scheduled().filter(phase_q(EventPhase.LIVE, now)).order_by('date', 'time', 'id')
+
+    def ended(self, now=None):
+        """Scheduled events whose end time has passed, most recent first (US-4.8)."""
+        return self.scheduled().filter(phase_q(EventPhase.ENDED, now)).order_by('-date', '-time', '-id')
+
+    def in_phases(self, phases, now=None):
+        """Scheduled events in any of `phases`, live first, then upcoming, then ended (US-4.8)."""
+        if not phases:
+            return self.none()
+        membership = models.Q()
+        for phase in phases:
+            membership |= phase_q(phase, now)
+        return self.scheduled().filter(membership).by_phase(now)
+
+    def by_phase(self, now=None):
+        return self.order_by(*phase_ordering(now))
 
     def with_confirmed_players(self):
         """Annotate `confirmed_players`: active RSVPs plus the host when playing (US-3.10)."""
@@ -205,6 +265,25 @@ class Event(models.Model):
     def has_started(self):
         """The start time has passed, so the game is live or over (renamed from is_past for US-4.8, #117)."""
         return self.starts_at < timezone.now()
+
+    @property
+    def has_ended(self):
+        """The end time has passed (US-4.8)."""
+        return self.ends_at <= timezone.now()
+
+    @property
+    def discussion_open(self):
+        """Posting is open until the game ends, and closed for cancelled and removed games (#35, US-4.8)."""
+        return self.status == EventStatus.SCHEDULED and not self.has_ended
+
+    @property
+    def phase(self):
+        """'upcoming', 'live' or 'ended'; None for cancelled and removed games, which are in no phase."""
+        if self.status != EventStatus.SCHEDULED:
+            return None
+        if self.has_ended:
+            return EventPhase.ENDED
+        return EventPhase.LIVE if self.has_started else EventPhase.UPCOMING
 
     @property
     def is_unlimited(self):
