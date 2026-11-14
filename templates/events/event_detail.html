@@ -8,7 +8,7 @@
 <article class="event-card">
   <header class="event-card-header">
     <div class="event-badges">
-      <span class="event-badge event-badge--status">{{ event.get_status_display }}</span>
+      {% if event.status == 'scheduled' %}{% include "events/includes/phase_badge.html" %}{% else %}<span class="event-badge event-badge--status">{{ event.get_status_display }}</span>{% endif %}
       <span class="event-badge">{{ event.get_activity_display }}</span>
       <span class="event-badge">{{ event.get_skill_level_display }}</span>
     </div>
@@ -65,14 +65,18 @@
 
   <section class="event-attendance" aria-labelledby="event-attendance-title">
     <div class="event-attendance-head">
-      <h2 id="event-attendance-title">Going <span class="event-attendance-count">{{ confirmed_players }}</span></h2>
-      {% if event.capacity %}
-        <span class="event-spots{% if not spots_remaining %} event-spots--full{% endif %}">{% if spots_remaining %}{{ spots_remaining }} spot{{ spots_remaining|pluralize }} left{% else %}Full{% endif %}</span>
+      {# US-4.8 (#117): once a game ends it lists who played, with no spots left or limit. #}
+      <h2 id="event-attendance-title">{% if ended %}Played{% else %}Going{% endif %} <span class="event-attendance-count">{{ confirmed_players }}</span></h2>
+      {% if ended %}
+        <span class="event-spots event-spots--muted">{{ confirmed_players }} played</span>
+      {% elif event.capacity %}
+        <span class="event-spots{% if not spots_remaining %} event-spots--muted{% endif %}">{% if spots_remaining %}{{ spots_remaining }} spot{{ spots_remaining|pluralize }} left{% else %}Full{% endif %}</span>
       {% else %}
         <span class="event-spots">Unlimited spots</span>
       {% endif %}
     </div>
-    {% if event.capacity %}
+    {% if ended %}
+    {% elif event.capacity %}
       <div class="event-spots-bar" aria-hidden="true"><span style="width: {% widthratio confirmed_players event.capacity 100 %}%"></span></div>
       <p class="event-spots-caption">{{ confirmed_players }} / {{ event.capacity }} players</p>
     {% else %}
@@ -80,8 +84,12 @@
     {% endif %}
     <ul class="event-roster">
       {# The host is always listed; only "Playing" takes a spot (US-3.10 / #82). #}
-      {% if event.host_is_playing %}
+      {% if event.host_is_playing and ended %}
+        {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host · Played" %}
+      {% elif event.host_is_playing %}
         {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host · Playing" %}
+      {% elif ended %}
+        {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host · Didn't play" %}
       {% else %}
         {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host · Not playing" %}
       {% endif %}
@@ -92,7 +100,7 @@
           {% include "events/includes/roster_chip.html" with member=rsvp.user tag="" rsvp=rsvp %}
         {% endif %}
       {% empty %}
-        <li class="event-roster-empty">No one has RSVP’d yet.</li>
+        <li class="event-roster-empty">{% if ended %}No one else played.{% else %}No one has RSVP’d yet.{% endif %}</li>
       {% endfor %}
     </ul>
 

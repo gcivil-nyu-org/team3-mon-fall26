@@ -14,6 +14,9 @@
   --surface: #ffffff;
   --bg: #f6f8f7;
   --danger: #b42318;
+  --live: #f79009;
+  --live-ink: #b54708;
+  --ended-bg: #eaecf0;
   --danger-bg: #fef3f2;
   --danger-border: #fecdca;
   --success: #067647;
@@ -1094,7 +1097,7 @@ a:focus-visible {
   color: var(--green-700);
 }
 
-.event-spots--full {
+.event-spots--muted {
   color: var(--muted);
 }
 
@@ -1452,9 +1455,26 @@ a:focus-visible {
   transform: translateY(-1px);
 }
 
-.discover-item.is-past {
-  opacity: 0.65;
-  border-left-color: var(--muted);
+/* US-4.8 (#117): live games get an orange outline; ended games are grey but keep readable text. */
+.discover-item--live {
+  border-color: #fec84b;
+  border-left-color: var(--live);
+}
+
+.discover-item--ended {
+  background: var(--bg);
+  border-left-color: var(--placeholder);
+  box-shadow: none;
+}
+
+.discover-item--static:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.discover-item--ended .discover-date {
+  color: var(--ink-2);
+  background: var(--ended-bg);
 }
 
 .discover-link {
@@ -1513,6 +1533,19 @@ a:focus-visible {
   box-shadow: inset 0 0 0 1px var(--green-700);
 }
 
+.event-badge--live {
+  color: var(--live-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--live);
+}
+
+.event-badge--ended {
+  color: var(--ink-2);
+  background: var(--ended-bg);
+}
+
 .event-badge--host {
   color: #fff;
   background: var(--green-900);
@@ -1543,7 +1576,7 @@ a:focus-visible {
   color: var(--green-700);
 }
 
-.discover-spots--ended {
+.discover-spots--muted {
   color: var(--muted);
 }
 

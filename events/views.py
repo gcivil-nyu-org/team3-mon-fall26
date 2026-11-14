@@ -12,7 +12,7 @@ from django.views.decorators.http import require_GET, require_POST
 from django.views.generic import CreateView, DetailView, ListView, UpdateView, View
 
 from parks.models import Facility, Park
-from parks.views import facility_groups, with_availability
+from parks.views import facility_groups
 
 from .forms import EventCreateForm, EventUpdateForm
 from .hosting import HostPlayingError, host_playing_error, set_host_playing
@@ -43,11 +43,16 @@ def with_viewer_attending(events, user):
     )
 
 
-def event_cards(events, user):
-    """Explore event cards: spots left, and `viewer_hosting` for the Host badge (US-4.7)."""
-    events = with_availability(events)
+def event_cards(events, user, filters):
+    """Explore event cards: `viewer_hosting` for the Host badge (US-4.7), and `unlinked` for ended games.
+
+    US-4.8 (#117): in public Explore an ended game is a greyed-out row, not a link. My Events keep the link
+    so players can still open games they played.
+    """
+    events = list(events)
     for event in events:
         event.viewer_hosting = user.is_authenticated and event.organizer_id == user.pk
+        event.unlinked = filters['scope'] == 'all' and event.phase == EventPhase.ENDED
     return events
 
 
@@ -138,7 +143,7 @@ class EventListView(ListView):
                 park.facility_labels = facility_labels(park)
                 park.details_url = park_details_url(park)
         else:
-            context['events'] = event_cards(context['object_list'], self.request.user)
+            context['events'] = event_cards(context['object_list'], self.request.user, self.filters)
         context.update(
             filters=self.filters,
             filter_form=self.filter_form,
@@ -264,7 +269,7 @@ def park_preview_context(park, filters, user):
     events = (
         matching_events(filters, user).filter(park=park).with_confirmed_players().select_related('organizer__profile')
     )
-    park_events = event_cards(with_viewer_attending(events, user), user)
+    park_events = event_cards(with_viewer_attending(events, user), user, filters)
     close_params = filter_params(filters)
     close_params.pop('park', None)
     return {
@@ -494,6 +499,8 @@ class EventDetailView(DetailView):
             event_block_reason = 'This event has been cancelled.'
         elif event.status == EventStatus.REMOVED:
             event_block_reason = 'This event has been removed.'
+        elif event.has_ended:
+            event_block_reason = 'This event has ended.'
         elif event.has_started:
             event_block_reason = 'This event has already started.'
 
@@ -516,7 +523,8 @@ class EventDetailView(DetailView):
             can_post_message=event.discussion_open,
             message_max_length=MESSAGE_MAX_LENGTH,
             confirmed_players=confirmed_players,
-            spots_remaining=(None if event.capacity is None else max(event.capacity - confirmed_players, 0)),
+            spots_remaining=event.spots_remaining,
+            ended=event.phase == EventPhase.ENDED,
             user_rsvp=user_rsvp,
             rsvp_block_reason=reason,
             event_block_reason=event_block_reason,

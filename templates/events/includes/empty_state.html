@@ -2,7 +2,7 @@
 {# Optional: tag="li" inside lists, map=True for the map overlay, hidden=True for client-revealed states. #}
 <{{ tag|default:'div' }} class="explore-empty explore-empty--{{ state }}{% if state == 'map_error' %} explore-map-error{% endif %}{% if map %} explore-empty--map{% endif %}" data-empty-state="{{ state }}"{% if map %} data-map-empty{% endif %}{% if state == 'map_error' %} data-map-error{% endif %}{% if hidden %} hidden{% endif %} role="status">
   {% if state == 'no_events' %}
-    <h2>No upcoming events match your filters.</h2>
+    <h2>No events match your filters.</h2>
     <p>There are still places to play. Explore the parks or start a game.</p>
     <p class="explore-empty-actions">
       <a class="btn btn--ghost" href="{{ clear_filters_url }}">Clear filters</a>
@@ -10,7 +10,7 @@
       <a class="btn btn--primary" href="{% url 'event_create' %}">Create Event</a>
     </p>
   {% elif state == 'no_my_events' %}
-    <h2>{% if filter_pills %}None of your events match your filters.{% else %}You have no upcoming events.{% endif %}</h2>
+    <h2>{% if filter_pills or filters.phase %}None of your events match your filters.{% else %}You have no upcoming events.{% endif %}</h2>
     <p class="explore-empty-actions">
       {% if filter_pills %}<a class="btn btn--ghost" href="{{ clear_filters_url }}">Clear filters</a>{% endif %}
       <a class="btn btn--ghost" href="{% explore_url scope=None events_only=None %}">Show all events</a>

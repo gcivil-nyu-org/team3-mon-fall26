@@ -1,7 +1,7 @@
-{# US-3.2 (#23): park-page upcoming events or the panel's scope-aware matching events. #}
+{# US-3.2 (#23): the park page's live and upcoming games, or the panel's matching events. Ended rows in public Explore aren't links (US-4.8). #}
 <ul class="discover-list park-events">
 {% for event in park_events %}
-  <li class="discover-item"><a class="discover-link" href="{{ event.get_absolute_url }}">
+  <li class="discover-item{% with phase=event.phase %}{% if phase %} discover-item--{{ phase }}{% endif %}{% endwith %}{% if event.unlinked %} discover-item--static{% endif %}">{% if event.unlinked %}<div class="discover-link">{% else %}<a class="discover-link" href="{{ event.get_absolute_url }}">{% endif %}
     <span class="discover-date" aria-hidden="true"><span class="discover-date-dow">{{ event.date|date:'D' }}</span><span class="discover-date-day">{{ event.date|date:'j' }}</span><span class="discover-date-mon">{{ event.date|date:'M' }}</span></span>
     <span class="discover-body">{% include "events/includes/event_badges.html" %}
       <span class="discover-name">{{ event.display_title }}</span>
@@ -9,11 +9,11 @@
       <span class="discover-meta">{% if event.meeting_spot %}Meet at {{ event.meeting_spot }}{% else %}Meeting spot not specified{% endif %}</span>
     </span>
     {% include "events/includes/event_spots.html" %}
-  </a></li>
+  {% if event.unlinked %}</div>{% else %}</a>{% endif %}</li>
 {% empty %}
   <li class="discover-empty">
     {% if in_park_panel %}<p>No events here match your filters.</p>
-    {% else %}<p>No upcoming events here yet. Be the first to host one!</p>
+    {% else %}<p>No games here yet. Be the first to host one!</p>
     <a class="btn btn--primary" href="{% url 'event_create' %}?park={{ park.pk }}">Organize an event here</a>{% endif %}
   </li>
 {% endfor %}

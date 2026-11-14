@@ -223,6 +223,24 @@ SAMPLE_EVENTS = [
 ]
 
 
+# US-4.8 (#117): one game that's on when the command runs, so the LIVE badge shows locally.
+LIVE_SAMPLE = dict(
+    title='Drop-In Basketball Run',
+    activity=Activity.BASKETBALL,
+    meeting_spot='Main courts',
+    skill_level=SkillLevel.ALL,
+    capacity=12,
+    description='Running full court right now. Come by before it wraps up.',
+)
+
+
+def live_window(now):
+    """A start 30 minutes ago and an end 90 minutes from now, kept on today's date."""
+    start = max(now - datetime.timedelta(minutes=30), now.replace(hour=0, minute=0, second=0, microsecond=0))
+    end = min(now + datetime.timedelta(minutes=90), now.replace(hour=23, minute=59, second=0, microsecond=0))
+    return start.time().replace(second=0, microsecond=0), end.time()
+
+
 def pick_park(name, borough):
     parks = Park.objects.filter(is_retired=False)
     return (
@@ -281,5 +299,18 @@ class Command(BaseCommand):
                 description=description,
             )
 
-        past = sum(1 for row in SAMPLE_EVENTS if row[4] < 0)
-        self.stdout.write(self.style.SUCCESS(f'Created {len(SAMPLE_EVENTS)} sample events ({past} in the past).'))
+        now = timezone.now().astimezone(NYC_TZ)
+        start, end = live_window(now)
+        Event.objects.create(
+            organizer=organizer,
+            park=pick_park('Rucker Park', Borough.MANHATTAN),
+            date=now.date(),
+            time=start,
+            end_time=end,
+            **LIVE_SAMPLE,
+        )
+
+        ended = sum(1 for row in SAMPLE_EVENTS if row[4] < 0)
+        self.stdout.write(
+            self.style.SUCCESS(f'Created {len(SAMPLE_EVENTS) + 1} sample events ({ended} ended, 1 live right now).')
+        )

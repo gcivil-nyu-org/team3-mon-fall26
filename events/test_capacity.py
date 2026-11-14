@@ -65,7 +65,7 @@ class EnforceCapacityTests(CapacityTestCase):
         messages, page = self.join(event, self.players[1])
         self.assertEqual(messages, ['You are attending this event.'])
         self.assertContains(page, '3 / 3 players')
-        self.assertContains(page, 'event-spots--full">Full</span>')
+        self.assertContains(page, 'event-spots--muted">Full</span>')
 
         # Full everywhere: the event page disables Join, and the cards say Full.
         self.client.force_login(self.players[2])
@@ -75,9 +75,9 @@ class EnforceCapacityTests(CapacityTestCase):
         )
         self.assertContains(detail, 'This event is full.')
         explore = self.client.get(reverse('event_list'), {'view': 'list', 'tab': 'events'})
-        self.assertContains(explore, 'discover-spots--ended">Full</span>')
+        self.assertContains(explore, 'discover-spots--muted">Full</span>')
         park_page = self.client.get(reverse('park_detail', kwargs={'pk': self.park.pk}))
-        self.assertContains(park_page, 'discover-spots--ended">Full</span>')
+        self.assertContains(park_page, 'discover-spots--muted">Full</span>')
 
     def test_host_not_playing_leaves_their_spot_open(self):
         event = self.make_event(capacity=2, host_is_playing=False)

@@ -13,7 +13,7 @@
     {% endfor %}
   </ol>
   {% if not has_discussion_messages %}
-    <p class="event-discussion-empty">No messages yet. Ask a question below!</p>
+    <p class="event-discussion-empty">{% if can_post_message %}No messages yet. Ask a question below!{% else %}No messages were posted.{% endif %}</p>
   {% endif %}
   {% if can_post_message %}
     {% if user.is_authenticated %}

@@ -18,7 +18,7 @@ from parks.models import Borough, Park
 
 from .models import NYC_TZ, Activity, Event
 
-NO_EVENTS = 'No upcoming events match your filters.'
+NO_EVENTS = 'No events match your filters.'
 NO_MATCHES = 'No parks or events match your filters. Try broadening your criteria.'
 EVENTS_ONLY = "No events match. Turn off 'Only parks with events' to see parks where you could host one."
 NO_PARK_DATA = 'Park facility details are temporarily unavailable. Please try again shortly.'

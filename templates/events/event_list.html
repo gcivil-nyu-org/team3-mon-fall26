@@ -19,7 +19,7 @@
   </header>
   {% include 'events/includes/explore_filters.html' %}
   <div class="explore-toolbar">
-    <p><strong>{{ event_total }}</strong> {% if filters.scope == 'all' %}upcoming{% else %}matching{% endif %} event{{ event_total|pluralize }} <span aria-hidden="true">·</span>
+    <p><strong>{{ event_total }}</strong> event{{ event_total|pluralize }} <span aria-hidden="true">·</span>
       <strong>{{ park_total }}</strong> park{{ park_total|pluralize }}</p>
     <nav class="explore-switch" aria-label="Results view">
       <a href="{% explore_url view='map' %}" {% if filters.view == 'map' %}aria-current="page"{% endif %}>Map</a>
@@ -68,7 +68,7 @@
     {% else %}
       <ul class="discover-list explore-event-list">
       {% for event in events %}
-        <li class="discover-item"><a class="discover-link" href="{{ event.get_absolute_url }}">
+        <li class="discover-item{% with phase=event.phase %}{% if phase %} discover-item--{{ phase }}{% endif %}{% endwith %}{% if event.unlinked %} discover-item--static{% endif %}">{% if event.unlinked %}<div class="discover-link">{% else %}<a class="discover-link" href="{{ event.get_absolute_url }}">{% endif %}
           <span class="discover-date" aria-hidden="true"><span class="discover-date-dow">{{ event.date|date:'D' }}</span><span class="discover-date-day">{{ event.date|date:'j' }}</span><span class="discover-date-mon">{{ event.date|date:'M' }}</span></span>
           <span class="discover-body">{% include "events/includes/event_badges.html" %}
             <span class="discover-name">{{ event.display_title }}</span>
@@ -76,7 +76,7 @@
             {% if event.meeting_spot %}<span class="discover-meta">Meet at {{ event.meeting_spot }}</span>{% endif %}
           </span>
           {% include "events/includes/event_spots.html" %}
-        </a></li>
+        {% if event.unlinked %}</div>{% else %}</a>{% endif %}</li>
       {% empty %}
         {% include "events/includes/empty_state.html" with state=empty_state tag="li" %}
       {% endfor %}

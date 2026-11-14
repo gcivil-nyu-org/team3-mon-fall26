@@ -378,7 +378,7 @@ class EventDiscoveryFeedTests(TestCase):
 
     def test_empty_state(self):
         response = self.client.get(reverse('event_list'))
-        self.assertContains(response, 'No upcoming events')
+        self.assertContains(response, 'No events match your filters.')
 
     def test_feed_links_to_existing_event_detail_page(self):
         event = self.make_event()
@@ -639,25 +639,32 @@ class EventRSVPTests(TestCase):
         self.assertContains(response, '1 spot left')
 
     def test_event_status_or_start_blocks_ui_and_direct_post(self):
+        # US-4.8 (#117): the page says an ended game has ended; joining is still refused as already started.
         cases = (
-            (EventStatus.CANCELLED, self.event.date, 'This event has been cancelled.'),
-            (EventStatus.REMOVED, self.event.date, 'This event has been removed.'),
+            (
+                EventStatus.CANCELLED,
+                self.event.date,
+                'This event has been cancelled.',
+                'This event has been cancelled.',
+            ),
+            (EventStatus.REMOVED, self.event.date, 'This event has been removed.', 'This event has been removed.'),
             (
                 EventStatus.SCHEDULED,
                 timezone.localdate() - datetime.timedelta(days=1),
+                'This event has ended.',
                 'This event has already started.',
             ),
         )
         self.client.force_login(self.player)
 
-        for status, event_date, reason in cases:
+        for status, event_date, note, reason in cases:
             with self.subTest(reason=reason):
                 self.event.status = status
                 self.event.date = event_date
                 self.event.save(update_fields=['status', 'date'])
 
                 page = self.client.get(self.detail_url)
-                self.assertContains(page, reason)
+                self.assertContains(page, note)
                 self.assertContains(
                     page, '<button class="btn btn--primary" type="button" disabled>Join event</button>', html=True
                 )
@@ -800,7 +807,7 @@ class EventRSVPTests(TestCase):
         self.client.force_login(self.player)
 
         page = self.client.get(self.detail_url)
-        self.assertContains(page, 'This event has already started.')
+        self.assertContains(page, 'This event has ended.')
         self.assertNotContains(page, 'Attending · Cancel RSVP')
         response = self.client.post(self.cancel_rsvp_url, follow=True)
 

@@ -91,8 +91,8 @@ class MyEventsTests(TestCase):
             mine, '<span class="event-badge explore-status-badge">Removed by a moderator</span>', html=True
         )
         # Games that aren't happening show that in place of players and spots.
-        self.assertContains(mine, '<span class="discover-spots discover-spots--ended">Cancelled</span>', html=True)
-        self.assertContains(mine, '<span class="discover-spots discover-spots--ended">Removed</span>', html=True)
+        self.assertContains(mine, '<span class="discover-spots discover-spots--muted">Cancelled</span>', html=True)
+        self.assertContains(mine, '<span class="discover-spots discover-spots--muted">Removed</span>', html=True)
         self.assertNotContains(mine, 'players')
         self.assertNotContains(mine, 'spots left')
 

@@ -98,7 +98,7 @@ class ParkUpcomingEventsTests(TestCase):
     def test_no_upcoming_events_invites_organizing_here(self):
         self.event(park=self.other_park)
         response = self.page()
-        self.assertContains(response, 'No upcoming events here yet. Be the first to host one!')
+        self.assertContains(response, 'No games here yet. Be the first to host one!')
         # The header button plus the empty-state button.
         self.assertContains(response, f'href="{reverse("event_create")}?park={self.park.pk}"', count=2)
 

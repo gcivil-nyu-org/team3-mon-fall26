@@ -27,14 +27,6 @@ def facility_groups(facilities):
     return sorted(groups.values(), key=lambda group: (-group['count'], group['sport']))
 
 
-def with_availability(events):
-    """Set `spots_remaining` (None when unlimited) on events annotated with confirmed players."""
-    events = list(events)
-    for event in events:
-        event.spots_remaining = None if event.is_unlimited else max(event.capacity - event.confirmed_players, 0)
-    return events
-
-
 class ParkDetailView(DetailView):
     """Full park page: details, facilities, upcoming events and reviews (US-2.6, US-3.2)."""
 
@@ -87,9 +79,7 @@ class ParkDetailView(DetailView):
             .with_confirmed_players()
             .select_related('organizer__profile')
         )
-        context.update(
-            facility_groups=facility_groups(self.object.facilities.all()), park_events=with_availability(events)
-        )
+        context.update(facility_groups=facility_groups(self.object.facilities.all()), park_events=list(events))
         reviews = self.object.reviews.select_related('user__profile')
         context['reviews_page'] = Paginator(reviews, 10).get_page(self.request.GET.get('reviews_page'))
         context['own_review'] = (

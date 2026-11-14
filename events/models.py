@@ -290,6 +290,13 @@ class Event(models.Model):
         return self.capacity is None
 
     @property
+    def spots_remaining(self):
+        """Open spots, or None when unlimited (US-4.1). Reads the `with_confirmed_players()` annotation."""
+        if self.is_unlimited:
+            return None
+        return max(self.capacity - self.confirmed_players, 0)
+
+    @property
     def display_title(self):
         """The event title, or its sport for events created before titles existed."""
         return self.title or self.get_activity_display()
