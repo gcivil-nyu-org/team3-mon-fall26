@@ -5,7 +5,7 @@
     <span class="discover-date" aria-hidden="true"><span class="discover-date-dow">{{ event.date|date:'D' }}</span><span class="discover-date-day">{{ event.date|date:'j' }}</span><span class="discover-date-mon">{{ event.date|date:'M' }}</span></span>
     <span class="discover-body">{% include "events/includes/event_badges.html" %}
       <span class="discover-name">{{ event.display_title }}</span>
-      <span class="discover-meta"><span>{{ event.date|date:'D, M j' }} · {{ event.time|time:'g:i A' }}</span><span>Hosted by @{{ event.organizer.profile.display_username|default:event.organizer.username }}</span></span>
+      <span class="discover-meta"><span>{{ event.date|date:'D, M j' }} · {{ event.time_range }}</span><span>Hosted by @{{ event.organizer.profile.display_username|default:event.organizer.username }}</span></span>
       <span class="discover-meta">{% if event.meeting_spot %}Meet at {{ event.meeting_spot }}{% else %}Meeting spot not specified{% endif %}</span>
     </span>
     {% include "events/includes/event_spots.html" %}

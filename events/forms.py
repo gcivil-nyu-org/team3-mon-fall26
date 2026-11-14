@@ -12,6 +12,13 @@ NYC_TZ = ZoneInfo('America/New_York')
 MAX_CAPACITY = 10000
 MEETING_SPOT_ERROR_MESSAGE = 'Please specify where in the park to meet'
 PARK_ERROR_MESSAGE = 'Please select a valid park'
+# US-3.11 (#116): games end on the day they start and run from 15 minutes to 8 hours.
+MIN_GAME_LENGTH = datetime.timedelta(minutes=15)
+MAX_GAME_LENGTH = datetime.timedelta(hours=8)
+END_TIME_REQUIRED_MESSAGE = 'Please enter when the game ends'
+END_BEFORE_START_MESSAGE = 'End time must be after the start time, on the same day'
+TOO_SHORT_MESSAGE = 'Games must last at least 15 minutes'
+TOO_LONG_MESSAGE = 'Games can last at most 8 hours'
 
 
 class EventCreateForm(forms.ModelForm):
@@ -41,6 +48,7 @@ class EventCreateForm(forms.ModelForm):
             'activity',
             'date',
             'time',
+            'end_time',
             'skill_level',
             'capacity',
             'host_is_playing',
@@ -53,21 +61,25 @@ class EventCreateForm(forms.ModelForm):
             'activity': 'Activity / sport',
             'date': 'Event date',
             'time': 'Start time',
+            'end_time': 'End time',
             'skill_level': 'Skill requirement',
             'host_is_playing': "I'm playing in this game",
             'description': 'Event description',
         }
         help_texts = {
+            'end_time': 'Same day, 15 minutes to 8 hours after the start.',
             'host_is_playing': 'You count toward the participant limit. Uncheck if you are only organizing.',
         }
         error_messages = {
             'meeting_spot': {'required': MEETING_SPOT_ERROR_MESSAGE},
+            'end_time': {'required': END_TIME_REQUIRED_MESSAGE},
         }
         widgets = {
             'title': forms.TextInput(attrs={'placeholder': 'Saturday Morning 5v5 Pickup'}),
             'meeting_spot': forms.TextInput(attrs={'placeholder': 'North Meadow, Court 3'}),
             'date': forms.DateInput(attrs={'type': 'date'}),
             'time': forms.TimeInput(attrs={'type': 'time'}),
+            'end_time': forms.TimeInput(attrs={'type': 'time'}),
             'description': forms.Textarea(
                 attrs={
                     'rows': 4,
@@ -95,6 +107,8 @@ class EventCreateForm(forms.ModelForm):
             )
         # Blank is allowed in the model for events created before this field existed (#80).
         self.fields['meeting_spot'].required = True
+        # Nullable in the model only so a rollback keeps working (US-3.11); every new or edited event needs one.
+        self.fields['end_time'].required = True
         self.fields['activity'].choices = [('', 'Select a sport')] + list(Activity.choices)
 
     def clean_capacity(self):
@@ -115,6 +129,17 @@ class EventCreateForm(forms.ModelForm):
             now = timezone.now().astimezone(NYC_TZ)
             if scheduled <= now:
                 self.add_error('date', 'Event date and time must be in the future.')
+        end_time = cleaned_data.get('end_time')
+        if event_time and end_time:
+            length = datetime.datetime.combine(datetime.date.min, end_time) - datetime.datetime.combine(
+                datetime.date.min, event_time
+            )
+            if length <= datetime.timedelta(0):
+                self.add_error('end_time', END_BEFORE_START_MESSAGE)
+            elif length < MIN_GAME_LENGTH:
+                self.add_error('end_time', TOO_SHORT_MESSAGE)
+            elif length > MAX_GAME_LENGTH:
+                self.add_error('end_time', TOO_LONG_MESSAGE)
         return cleaned_data
 
 

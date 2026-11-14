@@ -13,6 +13,25 @@ MESSAGE_MAX_LENGTH = 2000
 # Event date/time are entered as New York local time (see EventCreateForm.clean).
 NYC_TZ = ZoneInfo('America/New_York')
 
+# US-3.11 (#116): games without an end time end 2 hours after they start, but no later than 11:59 PM.
+DEFAULT_GAME_LENGTH = datetime.timedelta(hours=2)
+LATEST_END_TIME = datetime.time(23, 59)
+
+
+def default_end_time(start):
+    """The end time for an event saved without one (older events, or a row written during a rollback)."""
+    end = datetime.datetime.combine(datetime.date.min, start) + DEFAULT_GAME_LENGTH
+    return end.time() if end.date() == datetime.date.min else LATEST_END_TIME
+
+
+def clock(value):
+    """'6:00' for 6 PM, matching the `g:i` date filter."""
+    return f'{value.hour % 12 or 12}:{value.minute:02d}'
+
+
+def meridiem(value):
+    return 'AM' if value.hour < 12 else 'PM'
+
 
 class SkillLevel(models.TextChoices):
     ALL = 'all', 'All skill levels'
@@ -118,6 +137,9 @@ class Event(models.Model):
     activity = models.CharField(max_length=100, choices=Activity.choices, db_index=True)
     date = models.DateField(db_index=True)
     time = models.TimeField()
+    # US-3.11 (#116). Nullable so the previous release can still save events after a rollback; the form
+    # requires it, and migration 0005 filled in older events. Read it through `effective_end_time`.
+    end_time = models.TimeField(null=True, blank=True)
     skill_level = models.CharField(
         max_length=32,
         choices=SkillLevel.choices,
@@ -162,6 +184,24 @@ class Event(models.Model):
         return datetime.datetime.combine(self.date, self.time, tzinfo=NYC_TZ)
 
     @property
+    def effective_end_time(self):
+        """The end time, or start + 2 hours (capped at 11:59 PM) for a row saved without one."""
+        return self.end_time or default_end_time(self.time)
+
+    @property
+    def ends_at(self):
+        """End as an aware datetime in New York time. Games end on the day they start."""
+        return datetime.datetime.combine(self.date, self.effective_end_time, tzinfo=NYC_TZ)
+
+    @property
+    def time_range(self):
+        """'6:00–8:00 PM', or '11:00 AM–1:00 PM' when the game crosses noon."""
+        start, end = self.time, self.effective_end_time
+        if meridiem(start) == meridiem(end):
+            return f'{clock(start)}–{clock(end)} {meridiem(end)}'
+        return f'{clock(start)} {meridiem(start)}–{clock(end)} {meridiem(end)}'
+
+    @property
     def has_started(self):
         """The start time has passed, so the game is live or over (renamed from is_past for US-4.8, #117)."""
         return self.starts_at < timezone.now()
@@ -189,6 +229,16 @@ class Event(models.Model):
 
     def get_absolute_url(self):
         return reverse('event_detail', kwargs={'pk': self.pk})
+
+    def save(self, *args, **kwargs):
+        # US-3.11 (#116): code that saves an event without an end time (the admin, seed data, tests) gets the
+        # same start + 2 hours default as older events, so phase queries (#117) can rely on the column.
+        if self.end_time is None and self.time is not None:
+            self.end_time = default_end_time(self.time)
+            update_fields = kwargs.get('update_fields')
+            if update_fields is not None and 'end_time' not in update_fields:
+                kwargs['update_fields'] = [*update_fields, 'end_time']
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.display_title} at {self.park.name} ({self.date})'

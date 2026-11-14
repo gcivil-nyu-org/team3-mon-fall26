@@ -54,6 +54,7 @@ class EventCreationAndCapacityTests(TestCase):
             'activity': Activity.BASKETBALL,
             'date': self.future_date,
             'time': '18:30',
+            'end_time': '20:00',
             'skill_level': SkillLevel.INTERMEDIATE,
             'capacity': '10',
             'description': 'Half-court 5v5 run, bring a dark and light shirt.',
@@ -292,7 +293,7 @@ class EventDiscoveryFeedTests(TestCase):
 
         self.assertContains(response, 'Pickup Basketball')
         self.assertContains(response, event.date.strftime('%b'))
-        self.assertContains(response, '6:30 PM')
+        self.assertContains(response, '6:30–8:30 PM')
         self.assertContains(response, 'Central Park')
         self.assertContains(response, 'Manhattan')
         self.assertContains(response, '11 spots left')
@@ -321,6 +322,7 @@ class EventDiscoveryFeedTests(TestCase):
                 'activity': Activity.ULTIMATE_FRISBEE,
                 'date': (self.today + datetime.timedelta(days=4)).isoformat(),
                 'time': '15:00',
+                'end_time': '17:00',
                 'skill_level': SkillLevel.BEGINNER,
                 'capacity': '',
                 'description': 'Bring a disc if you have one.',
@@ -557,6 +559,7 @@ class FoundationSchemaTests(TestCase):
                 'activity': 'Pickup Basketball',
                 'date': self.tomorrow.isoformat(),
                 'time': '18:30',
+                'end_time': '20:00',
                 'skill_level': SkillLevel.ALL,
                 'description': 'Free text is no longer allowed.',
             },

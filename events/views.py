@@ -189,7 +189,9 @@ def serialize_event(event):
         'skill_level_label': event.get_skill_level_display(),
         'date': event.date.isoformat(),
         'time': event.time.strftime('%H:%M'),
+        'end_time': event.effective_end_time.strftime('%H:%M'),
         'starts_at': event.starts_at.isoformat(),
+        'ends_at': event.ends_at.isoformat(),
         'park': {
             'id': event.park_id,
             'name': event.park.name,

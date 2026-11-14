@@ -44,9 +44,10 @@
     {% include "includes/form_field.html" with field=form.meeting_spot %}
     {% include "includes/form_field.html" with field=form.activity %}
 
-    <div class="event-form-row">
+    <div class="event-form-row event-form-row--thirds">
       {% include "includes/form_field.html" with field=form.date %}
       {% include "includes/form_field.html" with field=form.time %}
+      {% include "includes/form_field.html" with field=form.end_time %}
     </div>
 
     <div class="event-form-row">

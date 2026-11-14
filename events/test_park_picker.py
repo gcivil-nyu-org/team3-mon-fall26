@@ -44,6 +44,7 @@ class ParkPickerTests(TestCase):
             'activity': Activity.SOCCER,
             'date': '2026-11-15',
             'time': '10:00',
+            'end_time': '12:00',
             'skill_level': 'all',
             'capacity': '12',
             'host_is_playing': 'on',

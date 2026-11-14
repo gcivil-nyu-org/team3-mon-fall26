@@ -62,7 +62,7 @@ class ParkUpcomingEventsTests(TestCase):
             'Sunday run',
             'Running',
             'Beginner / Casual',
-            'Sun, Oct 25 · 3:00 PM',
+            'Sun, Oct 25 · 3:00–5:00 PM',
             'Meet at Track entrance',
             'Hosted by @court-host',
             'Meeting spot not specified',

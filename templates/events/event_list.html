@@ -72,7 +72,7 @@
           <span class="discover-date" aria-hidden="true"><span class="discover-date-dow">{{ event.date|date:'D' }}</span><span class="discover-date-day">{{ event.date|date:'j' }}</span><span class="discover-date-mon">{{ event.date|date:'M' }}</span></span>
           <span class="discover-body">{% include "events/includes/event_badges.html" %}
             <span class="discover-name">{{ event.display_title }}</span>
-            <span class="discover-meta"><span>{{ event.date|date:'D, M j' }} · {{ event.time|time:'g:i A' }}</span><span>{{ event.park.name }} · {{ event.park.get_borough_display }}</span></span>
+            <span class="discover-meta"><span>{{ event.date|date:'D, M j' }} · {{ event.time_range }}</span><span>{{ event.park.name }} · {{ event.park.get_borough_display }}</span></span>
             {% if event.meeting_spot %}<span class="discover-meta">Meet at {{ event.meeting_spot }}</span>{% endif %}
           </span>
           {% include "events/includes/event_spots.html" %}

@@ -65,6 +65,7 @@ class EventEditTestCase(TestCase):
             'activity': event.activity,
             'date': event.date.isoformat(),
             'time': event.time.strftime('%H:%M'),
+            'end_time': event.effective_end_time.strftime('%H:%M'),
             'skill_level': event.skill_level,
             'capacity': '' if event.capacity is None else str(event.capacity),
             'host_is_playing': 'on' if event.host_is_playing else None,

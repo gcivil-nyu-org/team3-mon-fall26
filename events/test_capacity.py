@@ -144,6 +144,7 @@ class SetCapacityTests(CapacityTestCase):
             'activity': Activity.RUNNING,
             'date': '2026-11-07',
             'time': '18:00',
+            'end_time': '19:00',
             'skill_level': 'all',
             'capacity': capacity,
             'host_is_playing': 'on',

@@ -59,6 +59,7 @@ class HostPlayingTests(TestCase):
             'activity': Activity.BASKETBALL,
             'date': '2026-11-07',
             'time': '10:00',
+            'end_time': '12:00',
             'skill_level': 'all',
             'capacity': '10',
             'host_is_playing': 'on',

@@ -959,11 +959,18 @@ a:focus-visible {
 .event-form-row {
   display: grid;
   gap: 16px;
+  /* Keep the inputs lined up when only some fields in the row have help text or errors under them. */
+  align-items: start;
 }
 
 @media (min-width: 640px) {
   .event-form-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  /* Date, start time and end time (US-3.11) */
+  .event-form-row--thirds {
+    grid-template-columns: 1fr 1fr 1fr;
   }
 }
 
