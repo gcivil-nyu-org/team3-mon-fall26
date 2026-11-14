@@ -25,7 +25,7 @@ def host_playing_error(event, playing, *, capacity, active_rsvps):
         return 'This event has been cancelled.'
     if event.status == EventStatus.REMOVED:
         return 'This event has been removed.'
-    if event.is_past:
+    if event.has_started:
         return STARTED_MESSAGE
     if playing and not event.host_is_playing and capacity is not None and active_rsvps >= capacity:
         return FULL_MESSAGE

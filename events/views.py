@@ -331,7 +331,7 @@ class EventCancelView(OrganizerOrAdminRequiredMixin, View):
                 messages.error(request, 'This event has already been cancelled.')
             elif event.status == EventStatus.REMOVED:
                 messages.error(request, 'This event has been removed.')
-            elif event.is_past:
+            elif event.has_started:
                 messages.error(request, 'This event has already started, so it can no longer be cancelled.')
             else:
                 event.status = EventStatus.CANCELLED
@@ -346,7 +346,7 @@ def edit_block_reason(event):
         return 'This event has been cancelled, so it can no longer be edited.'
     if event.status == EventStatus.REMOVED:
         return 'This event has been removed, so it can no longer be edited.'
-    if event.is_past:
+    if event.has_started:
         return 'This event has already started, so it can no longer be edited.'
     return None
 
@@ -431,7 +431,7 @@ class EventRemoveParticipantView(OrganizerOrAdminRequiredMixin, View):
             rsvp = get_object_or_404(RSVP.objects.select_for_update(), pk=rsvp_pk, event=event)
             if event.status != EventStatus.SCHEDULED:
                 messages.error(request, 'Participants can only be removed from scheduled events.')
-            elif event.is_past:
+            elif event.has_started:
                 messages.error(request, 'This event has already started, so participants can no longer be removed.')
             elif rsvp.status != RSVPStatus.ACTIVE:
                 messages.error(request, 'This participant is no longer attending this event.')
@@ -496,7 +496,7 @@ class EventDetailView(DetailView):
             event_block_reason = 'This event has been cancelled.'
         elif event.status == EventStatus.REMOVED:
             event_block_reason = 'This event has been removed.'
-        elif event.is_past:
+        elif event.has_started:
             event_block_reason = 'This event has already started.'
 
         reason = event_block_reason
@@ -624,7 +624,7 @@ def join_block_reason(event, rsvp):
         return 'This event has been cancelled.'
     if event.status == EventStatus.REMOVED:
         return 'This event has been removed.'
-    if event.is_past:
+    if event.has_started:
         return 'This event has already started.'
     if event.capacity is not None and event.count_confirmed_players() >= event.capacity:
         return 'This event is full.'
@@ -679,7 +679,7 @@ def cancel_event_rsvp(request, pk):
         rsvp = RSVP.objects.filter(event=event, user=request.user).first()
         if event.status != EventStatus.SCHEDULED:
             messages.error(request, 'RSVPs can only be cancelled for scheduled events.')
-        elif event.is_past:
+        elif event.has_started:
             messages.error(request, 'This event has already started.')
         elif rsvp is None or rsvp.status != RSVPStatus.ACTIVE:
             messages.error(request, 'You are not attending this event.')

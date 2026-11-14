@@ -162,7 +162,8 @@ class Event(models.Model):
         return datetime.datetime.combine(self.date, self.time, tzinfo=NYC_TZ)
 
     @property
-    def is_past(self):
+    def has_started(self):
+        """The start time has passed, so the game is live or over (renamed from is_past for US-4.8, #117)."""
         return self.starts_at < timezone.now()
 
     @property
