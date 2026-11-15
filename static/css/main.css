@@ -1294,6 +1294,11 @@ a:focus-visible {
   color: var(--green-700);
 }
 
+.event-discussion-message-edited {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .event-discussion-message p,
 .event-discussion-empty {
   margin: 0;
@@ -1307,11 +1312,13 @@ a:focus-visible {
   margin-top: 16px;
 }
 
-.event-discussion-form label {
+.event-discussion-form label,
+.event-discussion-edit-form label {
   font-weight: 600;
 }
 
-.event-discussion-form textarea {
+.event-discussion-form textarea,
+.event-discussion-edit-form textarea {
   width: min(100%, 680px);
   min-height: 100px;
   padding: 10px 12px;
@@ -1320,6 +1327,52 @@ a:focus-visible {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   font: inherit;
+}
+
+.event-discussion-message-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.event-discussion-message-actions .btn,
+.event-discussion-edit-actions .btn {
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 0.8125rem;
+}
+
+.event-discussion-message-actions form {
+  margin: 0;
+}
+
+.event-discussion-edit-form {
+  margin-top: 8px;
+}
+
+.event-discussion-edit-form textarea {
+  display: block;
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+}
+
+.event-discussion-edit-status {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.event-discussion-delete-status {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.event-discussion-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .event-discussion-login,

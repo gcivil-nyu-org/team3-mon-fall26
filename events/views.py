@@ -8,6 +8,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from django.views.generic import CreateView, DetailView, ListView, UpdateView, View
 
@@ -55,6 +56,17 @@ def event_cards(events, user, filters):
         event.viewer_hosting = user.is_authenticated and event.organizer_id == user.pk
         event.unlinked = filters['scope'] == 'all' and event.phase == EventPhase.ENDED
     return events
+
+
+def can_manage_own_messages(event, user):
+    return user.is_authenticated and (
+        event.discussion_open
+        or (
+            event.status == EventStatus.SCHEDULED
+            and event.has_ended
+            and event.can_be_managed_by(user)
+        )
+    )
 
 
 CLEARABLE_FILTERS = (
@@ -557,6 +569,7 @@ class EventDetailView(DetailView):
             has_discussion_messages=announcement_messages.exists() or regular_messages.exists(),
             latest_discussion_message_id=latest_discussion_message_id,
             can_post_message=event.discussion_open,
+            can_manage_own_messages=can_manage_own_messages(event, self.request.user),
             message_max_length=MESSAGE_MAX_LENGTH,
             confirmed_players=confirmed_players,
             spots_remaining=event.spots_remaining,
@@ -613,12 +626,84 @@ def post_event_message(request, pk):
                         {
                             'html': render_to_string(
                                 'events/includes/event_message.html',
-                                {'message': message},
+                                {
+                                    'message': message,
+                                    'event': event,
+                                    'can_manage_own_messages': can_manage_own_messages(event, request.user),
+                                    'message_max_length': MESSAGE_MAX_LENGTH,
+                                },
                                 request=request,
                             ),
                             'id': message.pk,
                         }
                     )
+    return redirect(event_url)
+
+
+def get_editable_message(request, event_pk, message_pk):
+    event = get_object_or_404(Event, pk=event_pk)
+    message = get_object_or_404(Message.objects.select_related('author__profile'), pk=message_pk, event=event)
+    if message.author_id != request.user.pk or not can_manage_own_messages(event, request.user):
+        raise PermissionDenied
+    return event, message
+
+
+@require_POST
+def edit_event_message(request, pk, message_pk):
+    event_url = reverse('event_detail', kwargs={'pk': pk})
+    wants_json = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+    if not request.user.is_authenticated:
+        return redirect_to_login(event_url)
+
+    event, message = get_editable_message(request, pk, message_pk)
+    body = request.POST.get('body', '').strip()
+    if not body:
+        error = 'Message cannot be blank.'
+        if wants_json:
+            return JsonResponse({'error': error}, status=400)
+        messages.error(request, error)
+    elif len(body) > MESSAGE_MAX_LENGTH:
+        error = f'Message cannot exceed {MESSAGE_MAX_LENGTH} characters.'
+        if wants_json:
+            return JsonResponse({'error': error}, status=400)
+        messages.error(request, error)
+    else:
+        message.body = body
+        message.edited_at = timezone.now()
+        message.save(update_fields=['body', 'edited_at'])
+        if wants_json:
+            is_announcement = message.author_id == event.organizer_id and message.is_announcement
+            return JsonResponse(
+                {
+                    'id': message.pk,
+                    'html': render_to_string(
+                        'events/includes/event_message.html',
+                        {
+                            'message': message,
+                            'event': event,
+                            'is_announcement': is_announcement,
+                            'can_manage_own_messages': can_manage_own_messages(event, request.user),
+                            'message_max_length': MESSAGE_MAX_LENGTH,
+                        },
+                        request=request,
+                    ),
+                }
+            )
+    return redirect(event_url)
+
+
+@require_POST
+def delete_event_message(request, pk, message_pk):
+    event_url = reverse('event_detail', kwargs={'pk': pk})
+    wants_json = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+    if not request.user.is_authenticated:
+        return redirect_to_login(event_url)
+
+    _, message = get_editable_message(request, pk, message_pk)
+    message_id = message.pk
+    message.delete()
+    if wants_json:
+        return JsonResponse({'deleted': True, 'id': message_id})
     return redirect(event_url)
 
 
@@ -646,7 +731,13 @@ def event_discussion_updates(request, pk):
                 'is_announcement': is_announcement,
                 'html': render_to_string(
                     'events/includes/event_message.html',
-                    {'message': message, 'is_announcement': is_announcement},
+                    {
+                        'message': message,
+                        'event': event,
+                        'is_announcement': is_announcement,
+                        'can_manage_own_messages': can_manage_own_messages(event, request.user),
+                        'message_max_length': MESSAGE_MAX_LENGTH,
+                    },
                     request=request,
                 ),
             }

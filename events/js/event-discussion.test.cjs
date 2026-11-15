@@ -17,6 +17,7 @@ function setup({open = true, hidden = false, initialIds = []} = {}) {
     querySelector(selector) {
       const idMatch = selector.match(/^\[data-message-id="(\d+)"\]$/);
       if (idMatch) return this.children.find((item) => item.dataset.messageId === idMatch[1]) || null;
+      if (selector === '[data-message-id]') return this.children[0] || null;
       if (selector === '.event-discussion-message--announcement') {
         return this.children.find((item) => item.announcement) || null;
       }
@@ -34,6 +35,9 @@ function setup({open = true, hidden = false, initialIds = []} = {}) {
     insertBefore(item, reference) {
       const index = this.children.indexOf(reference);
       this.children.splice(index < 0 ? this.children.length : index, 0, item);
+    },
+    after(item) {
+      state.afterMessage = item;
     },
   };
   const status = {textContent: ''};
@@ -58,6 +62,10 @@ function setup({open = true, hidden = false, initialIds = []} = {}) {
   const empty = {remove() {discussion.empty = null;}};
   const discussion = {
     empty: empty,
+    listeners: {},
+    addEventListener(name, callback) {
+      this.listeners[name] = callback;
+    },
     querySelector(selector) {
       if (selector === '[data-event-discussion-form]') return open ? form : null;
       if (selector === '.event-discussion-empty') return this.empty;
@@ -106,7 +114,7 @@ function setup({open = true, hidden = false, initialIds = []} = {}) {
 
   vm.runInNewContext(source, context);
 
-  return {state, list, form, button, textarea, status, document};
+  return {state, list, form, button, textarea, status, document, discussion};
 }
 
 test('polls every 30 seconds only for an open discussion', () => {
@@ -165,4 +173,175 @@ test('keeps the poll cursor unchanged after local posting and skips duplicate ID
   assert.match(state.fetchCalls[1].url, /after=1$/);
   assert.deepEqual(list.children.map((item) => item.dataset.messageId), ['1', '3', '2']);
   assert.equal(list.dataset.latestMessageId, '3');
+});
+
+test('switches a message into inline edit mode and restores it on cancel', () => {
+  const {discussion} = setup();
+  let reset = false;
+  let focused = false;
+  const editButton = {
+    hidden: false,
+    expanded: 'false',
+    setAttribute(name, value) {
+      if (name === 'aria-expanded') this.expanded = value;
+    },
+    closest() {
+      return message;
+    },
+  };
+  const cancelButton = {
+    closest() {
+      return editForm;
+    },
+  };
+  const textarea = {focus() { focused = true; }};
+  const actions = {
+    hidden: false,
+    querySelector() {
+      return editButton;
+    },
+  };
+  const body = {hidden: false};
+  const editForm = {
+    hidden: true,
+    closest() {
+      return message;
+    },
+    querySelector() {
+      return textarea;
+    },
+    reset() {
+      reset = true;
+    },
+  };
+  const message = {
+    querySelector(selector) {
+      if (selector === '[data-message-edit-form]') return editForm;
+      if (selector === '[data-message-body]') return body;
+      if (selector === '[data-message-actions]') return actions;
+      return null;
+    },
+  };
+  const click = (button) => discussion.listeners.click({
+    target: {
+      closest(selector) {
+        if (selector === '[data-message-edit-toggle]') return button === editButton ? editButton : null;
+        if (selector === '[data-message-edit-cancel]') return button === cancelButton ? cancelButton : null;
+        return null;
+      },
+    },
+  });
+
+  click(editButton);
+  assert.equal(editForm.hidden, false);
+  assert.equal(body.hidden, true);
+  assert.equal(actions.hidden, true);
+  assert.equal(editButton.expanded, 'true');
+  assert.equal(focused, true);
+
+  click(cancelButton);
+  assert.equal(reset, true);
+  assert.equal(editForm.hidden, true);
+  assert.equal(body.hidden, false);
+  assert.equal(actions.hidden, false);
+  assert.equal(editButton.expanded, 'false');
+});
+
+test('saves an edit over AJAX and replaces the message without navigating', async () => {
+  const {state, discussion} = setup();
+  const submitButton = {disabled: false};
+  const status = {textContent: ''};
+  let replacement;
+  const message = {
+    replaceWith(item) {
+      replacement = item;
+    },
+  };
+  const editForm = {
+    action: '/edit/',
+    querySelector(selector) {
+      if (selector === 'button[type="submit"]') return submitButton;
+      if (selector === '[data-message-edit-status]') return status;
+      return null;
+    },
+    closest() {
+      return message;
+    },
+  };
+  state.fetchResponse = async () => ({
+    ok: true,
+    json: async () => ({html: '<li>Updated text</li>', id: 8}),
+  });
+  const submitEvent = {
+    prevented: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+    target: {
+      closest(selector) {
+        return selector === '[data-message-edit-form]' ? editForm : null;
+      },
+    },
+  };
+
+  await discussion.listeners.submit(submitEvent);
+
+  assert.equal(submitEvent.prevented, true);
+  assert.equal(state.fetchCalls[0].url, '/edit/');
+  assert.equal(state.fetchCalls[0].options.method, 'POST');
+  assert.equal(state.fetchCalls[0].options.headers['X-Requested-With'], 'XMLHttpRequest');
+  assert.equal(replacement.html, '<li>Updated text</li>');
+  assert.equal(replacement.dataset.messageId, '8');
+  assert.equal(submitButton.disabled, false);
+  assert.equal(status.textContent, '');
+});
+
+test('deletes a message over AJAX without navigating and shows the empty state', async () => {
+  const {state, discussion} = setup();
+  const submitButton = {disabled: false};
+  const status = {textContent: ''};
+  let removed = false;
+  const message = {
+    dataset: {messageId: '4'},
+    remove() {
+      removed = true;
+    },
+  };
+  const deleteForm = {
+    action: '/delete/',
+    querySelector(selector) {
+      if (selector === 'button[type="submit"]') return submitButton;
+      if (selector === '[data-message-delete-status]') return status;
+      return null;
+    },
+    closest() {
+      return message;
+    },
+  };
+  state.fetchResponse = async () => ({
+    ok: true,
+    json: async () => ({deleted: true, id: 4}),
+  });
+  const submitEvent = {
+    prevented: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+    target: {
+      closest(selector) {
+        return selector === '[data-message-delete-form]' ? deleteForm : null;
+      },
+    },
+  };
+
+  await discussion.listeners.submit(submitEvent);
+
+  assert.equal(submitEvent.prevented, true);
+  assert.equal(state.fetchCalls[0].url, '/delete/');
+  assert.equal(state.fetchCalls[0].options.method, 'POST');
+  assert.equal(state.fetchCalls[0].options.headers['X-Requested-With'], 'XMLHttpRequest');
+  assert.equal(removed, true);
+  assert.equal(state.afterMessage.textContent, 'No messages yet. Ask a question below!');
+  assert.equal(submitButton.disabled, false);
+  assert.equal(status.textContent, '');
 });

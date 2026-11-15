@@ -16,6 +16,8 @@ from .views import (
     cancel_event_rsvp,
     post_event_message,
     event_discussion_updates,
+    edit_event_message,
+    delete_event_message,
 )
 
 urlpatterns = [
@@ -37,5 +39,15 @@ urlpatterns = [
     path('events/<int:pk>/playing/', EventHostPlayingView.as_view(), name='event_host_playing'),
     path('events/<int:pk>/discussion/', post_event_message, name='event_message_post'),
     path('events/<int:pk>/discussion/updates/', event_discussion_updates, name='event_discussion_updates'),
+    path(
+        'events/<int:pk>/discussion/<int:message_pk>/edit/',
+        edit_event_message,
+        name='event_message_edit',
+    ),
+    path(
+        'events/<int:pk>/discussion/<int:message_pk>/delete/',
+        delete_event_message,
+        name='event_message_delete',
+    ),
     path('events/<int:pk>/', EventDetailView.as_view(), name='event_detail'),
 ]
