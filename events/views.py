@@ -61,11 +61,7 @@ def event_cards(events, user, filters):
 def can_manage_own_messages(event, user):
     return user.is_authenticated and (
         event.discussion_open
-        or (
-            event.status == EventStatus.SCHEDULED
-            and event.has_ended
-            and event.can_be_managed_by(user)
-        )
+        or (event.status == EventStatus.SCHEDULED and event.has_ended and event.can_be_managed_by(user))
     )
 
 
