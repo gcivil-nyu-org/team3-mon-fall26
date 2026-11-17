@@ -1,9 +1,19 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.core.exceptions import PermissionDenied
-from django.template.defaultfilters import linebreaksbr
+from django.db import transaction
+from django.template.defaultfilters import linebreaksbr, pluralize
+from django.urls import reverse
+from django.utils.html import format_html_join
+from django.utils.safestring import mark_safe
+
+from events.models import RSVP, Event
+from parks.models import Review
+
+from .audit import log_admin_action
+from .suspension import end_sessions
 
 User = get_user_model()
 
@@ -17,19 +27,34 @@ class UserAdmin(BaseUserAdmin):
     Administrators can view accounts and activate or deactivate participants. Everything else,
     including staff status, groups, permissions, passwords and other staff accounts, is
     superuser-only, so an administrator can't grant themselves or anyone else more access.
+
+    US-7.6 (#49): suspending an account means clearing Active, from the form or the Suspend action.
+    Django then refuses the account at login and drops its existing sessions on their next request.
+    Accounts are never deleted, because deleting one would also delete its events and other people's
+    RSVPs to them.
     """
 
+    list_display = ('username', 'email', 'date_joined', 'last_login', 'is_active', 'is_staff')
+    readonly_fields = ('activity',)
+    actions = ('suspend_accounts', 'restore_accounts')
+
     def get_readonly_fields(self, request, obj=None):
-        readonly = super().get_readonly_fields(request, obj)
+        readonly = tuple(super().get_readonly_fields(request, obj))
+        if obj is not None and obj.pk == request.user.pk:
+            # Nobody can suspend themselves and get locked out.
+            readonly += ('is_active',)
         if request.user.is_superuser or obj is None:
             return readonly
-        editable = {'is_active'}
+        editable = {'is_active'} - set(readonly)
         fields = {field for _, options in self.get_fieldsets(request, obj) for field in options['fields']}
-        return tuple(readonly) + tuple(sorted((fields | set(ROLE_FIELDS)) - editable - {'password'}))
+        return tuple(sorted((fields | set(ROLE_FIELDS) | set(readonly)) - editable - {'password'}))
 
     def get_fieldsets(self, request, obj=None):
         fieldsets = super().get_fieldsets(request, obj)
-        if request.user.is_superuser or obj is None:
+        if obj is None:
+            return fieldsets
+        fieldsets = [*fieldsets, ('Activity', {'fields': ('activity',)})]
+        if request.user.is_superuser:
             return fieldsets
         # The password field links to the password change form, which non-superusers can't use.
         return [
@@ -49,6 +74,66 @@ class UserAdmin(BaseUserAdmin):
         if not request.user.is_superuser:
             raise PermissionDenied
         return super().user_change_password(request, id, form_url)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if change and 'is_active' in form.changed_data and not obj.is_active:
+            end_sessions([obj])
+
+    @admin.display(description='Links')
+    def activity(self, user):
+        """Links to what the account has done on the site, each filtered to this account."""
+        links = (
+            (
+                'Hosted events',
+                'admin:events_event_changelist',
+                'organizer__id__exact',
+                Event.objects.filter(organizer=user),
+            ),
+            ('RSVPs', 'admin:events_rsvp_changelist', 'user__id__exact', RSVP.objects.filter(user=user)),
+            ('Park reviews', 'admin:parks_review_changelist', 'user__id__exact', Review.objects.filter(user=user)),
+        )
+        return format_html_join(
+            mark_safe('<br>'),
+            '<a href="{}?{}={}">{} ({})</a>',
+            ((reverse(url), lookup, user.pk, label, rows.count()) for label, url, lookup, rows in links),
+        )
+
+    @admin.action(description='Suspend selected accounts', permissions=['change'])
+    def suspend_accounts(self, request, queryset):
+        self.set_active(request, queryset, False)
+
+    @admin.action(description='Restore selected accounts', permissions=['change'])
+    def restore_accounts(self, request, queryset):
+        self.set_active(request, queryset, True)
+
+    def set_active(self, request, queryset, active):
+        """Suspend or restore the accounts this administrator may change, logging each one."""
+        changed, skipped = [], 0
+        with transaction.atomic():
+            for user in queryset.select_for_update():
+                if user.is_active == active:
+                    continue
+                if user.pk == request.user.pk or not self.has_change_permission(request, user):
+                    skipped += 1
+                    continue
+                user.is_active = active
+                user.save(update_fields=['is_active'])
+                log_admin_action(request.user, user, 'change', 'Restored account' if active else 'Suspended account')
+                changed.append(user)
+            if not active:
+                end_sessions(changed)
+        verb = 'Restored' if active else 'Suspended'
+        self.message_user(request, f'{verb} {len(changed)} account{pluralize(len(changed))}.')
+        if skipped:
+            self.message_user(
+                request,
+                f"Skipped {skipped} account{pluralize(skipped)} you can't change (your own, or other staff).",
+                messages.WARNING,
+            )
 
 
 admin.site.unregister(User)
