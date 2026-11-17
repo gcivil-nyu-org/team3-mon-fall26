@@ -1,4 +1,4 @@
-"""Publish a tested develop commit without creating or resuming infrastructure."""
+"""Publish a tested main commit without creating or resuming infrastructure."""
 
 from decimal import Decimal
 import json
@@ -117,10 +117,10 @@ def deploy_version(clients, version, previous):
 def main():
     if (
         os.environ.get("GITHUB_REPOSITORY") != REPOSITORY
-        or os.environ.get("GITHUB_REF") != "refs/heads/develop"
+        or os.environ.get("GITHUB_REF") != "refs/heads/main"
         or os.environ.get("GITHUB_EVENT_NAME") != "push"
     ):
-        raise RuntimeError("Only pushes to the central develop branch can deploy")
+        raise RuntimeError("Only pushes to the central main branch can deploy")
     sha = os.environ["GITHUB_SHA"]
     run_id = os.environ["GITHUB_RUN_ID"]
     attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
@@ -128,9 +128,9 @@ def main():
         raise RuntimeError("Invalid workflow release identity")
     if subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip() != sha:
         raise RuntimeError("Checkout does not match the tested commit")
-    latest = subprocess.check_output(["git", "ls-remote", "origin", "refs/heads/develop"], text=True).split()[0]
+    latest = subprocess.check_output(["git", "ls-remote", "origin", "refs/heads/main"], text=True).split()[0]
     if latest != sha:
-        print("A newer develop commit exists; skipping this outdated release", flush=True)
+        print("A newer main commit exists; skipping this outdated release", flush=True)
         return
     import boto3
 
@@ -161,7 +161,7 @@ def main():
         eb.create_application_version(
             ApplicationName=APPLICATION,
             VersionLabel=version,
-            Description="develop " + sha,
+            Description="main " + sha,
             Process=True,
             SourceBundle={"S3Bucket": BUCKET, "S3Key": key},
         )
@@ -177,7 +177,7 @@ def main():
     else:
         raise TimeoutError("Application bundle processing did not finish")
     deploy_version(clients, version, previous)
-    message = f"Deployed develop `{sha}` as `{version}` to {URL}/\n"
+    message = f"Deployed main `{sha}` as `{version}` to {URL}/\n"
     print(message, flush=True)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:

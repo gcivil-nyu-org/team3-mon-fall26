@@ -1,10 +1,10 @@
-name: Test and deploy develop
+name: Test and deploy main
 
 on:
   push:
-    branches: [develop]
+    branches: [develop, main]
   pull_request:
-    branches: [develop]
+    branches: [develop, main]
 
 permissions:
   contents: read
@@ -42,7 +42,7 @@ jobs:
 
   deploy:
     needs: test
-    if: github.repository == 'gcivil-nyu-org/team3-mon-fall26' && github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    if: github.repository == 'gcivil-nyu-org/team3-mon-fall26' && github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
