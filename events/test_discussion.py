@@ -411,14 +411,19 @@ class EventDiscussionTests(TestCase):
         self.client.force_login(self.player)
         url = reverse('event_message_post', kwargs={'pk': self.event.pk})
 
-        for status in (EventStatus.CANCELLED, EventStatus.REMOVED):
+        # A removed event's page is only the moderator notice (#48), with no discussion section.
+        notes = {
+            EventStatus.CANCELLED: 'Discussion is closed for this event.',
+            EventStatus.REMOVED: 'This event was removed by a moderator',
+        }
+        for status, note in notes.items():
             with self.subTest(status=status):
                 Event.objects.filter(pk=self.event.pk).update(status=status)
                 page = self.client.get(self.event.get_absolute_url())
                 response = self.client.post(url, {'body': 'A question'}, follow=True)
 
                 self.assertNotContains(page, 'name="body"')
-                self.assertContains(page, 'Discussion is closed for this event.')
+                self.assertContains(page, note)
                 self.assertContains(response, 'Discussion is closed for this event.')
                 self.assertFalse(Message.objects.filter(event=self.event).exists())
                 Event.objects.filter(pk=self.event.pk).update(status=EventStatus.SCHEDULED)

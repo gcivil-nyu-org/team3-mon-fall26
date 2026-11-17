@@ -1,14 +1,18 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ event.display_title }} at {{ event.park.name }} · NYC Active{% endblock %}
+{% block title %}{% if event.status == 'removed' %}Removed event{% else %}{{ event.display_title }} at {{ event.park.name }}{% endif %} · NYC Active{% endblock %}
 
 {# #122: Join, Leave, Cancel, Remove and "I'm playing" land on the roster, and posting without JavaScript on the #}
 {# discussion, so their messages show there. Everything else (e.g. Edit Event's save) stays at the top. #}
-{% block messages %}{% include "events/includes/section_messages.html" with section="page" %}{% endblock %}
+{# A removed event's page has no sections (#48), so every message shows at the top. #}
+{% block messages %}{% if event.status == 'removed' %}{{ block.super }}{% else %}{% include "events/includes/section_messages.html" with section="page" %}{% endif %}{% endblock %}
 
 {% block content %}
 {% include "events/_hub_header.html" with active="explore" back=True %}
+{% if event.status == 'removed' %}
+{% include "events/includes/removed_event.html" %}
+{% else %}
 <article class="event-card">
   <header class="event-card-header">
     <div class="event-badges">
@@ -158,7 +162,22 @@
       {% endif %}
     </section>
   {% endif %}
+
+  {% if can_remove_event %}
+    {# US-7.5 (#48): staff only. The reason goes into the audit log, not on the page. #}
+    <section class="event-moderate" aria-labelledby="event-moderate-title">
+      <h2 id="event-moderate-title">Moderator</h2>
+      <form class="event-moderate-form" method="post" action="{% url 'event_remove' event.pk %}" onsubmit="return confirm('Remove this event? It disappears from Explore and park pages, and its page will only say it was removed by a moderator.');">
+        {% csrf_token %}
+        <div class="input-wrap">
+          <input type="text" name="reason" maxlength="{{ removal_reason_max_length }}" placeholder="Reason for the audit log (optional)" aria-label="Reason for removing, for the audit log (optional)">
+        </div>
+        <button class="btn btn--danger" type="submit">Remove event</button>
+      </form>
+    </section>
+  {% endif %}
 </article>
+{% endif %}
 {% endblock %}
 
-{% block scripts %}{{ block.super }}<script src="{% static 'js/event-discussion.js' %}" defer></script>{% endblock %}
+{% block scripts %}{{ block.super }}{% if event.status != 'removed' %}<script src="{% static 'js/event-discussion.js' %}" defer></script>{% endif %}{% endblock %}

@@ -289,6 +289,9 @@ def matching_events(filters, user=None):
         # so they show alongside upcoming games and never with only live or ended ones.
         if EventPhase.UPCOMING in phases:
             membership |= ~Q(status=EventStatus.SCHEDULED) & phase_q(EventPhase.UPCOMING, now)
+        # #48: admins can remove a game at any point, so a removed game stays under the phase its time puts
+        # it in. Otherwise the host and players would lose it once it started.
+        membership |= Q(status=EventStatus.REMOVED) & reduce(or_, (phase_q(phase, now) for phase in phases))
         events = Event.objects.filter(membership)
         attending = RSVP.objects.filter(event_id=OuterRef('pk'), user=user, status=RSVPStatus.ACTIVE)
         if filters['scope'] == 'hosting':

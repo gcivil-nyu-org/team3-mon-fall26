@@ -334,6 +334,15 @@ a {
   background: var(--green-50);
 }
 
+.btn--danger {
+  color: #fff;
+  background: var(--danger);
+}
+
+.btn--danger:hover {
+  background: #912018;
+}
+
 .btn--block {
   width: 100%;
   min-height: 48px;
@@ -1397,6 +1406,60 @@ a:focus-visible {
   padding-top: 20px;
   margin-top: 20px;
   border-top: 1px solid var(--border);
+}
+
+/* US-7.5 (#48): staff-only removal, and the page a removed event leaves behind. */
+
+.event-moderate {
+  padding: 16px;
+  margin-top: 20px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius);
+}
+
+.event-moderate h2 {
+  margin: 0 0 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--danger);
+}
+
+.event-moderate-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.event-moderate-form .input-wrap {
+  flex: 1 1 240px;
+}
+
+.event-moderate-form input {
+  height: 40px;
+}
+
+.event-removed {
+  text-align: center;
+}
+
+.event-removed-title {
+  margin: 12px 0 8px;
+  font-size: 1.5rem;
+  color: var(--green-900);
+}
+
+.event-removed-text,
+.event-removed-staff {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.event-removed-staff {
+  margin-top: 12px;
+  font-size: 0.875rem;
 }
 
 /* Event discovery feed (#25) */
