@@ -55,13 +55,14 @@
   </section>
 
   <section class="park-detail-section" aria-labelledby="park-events-title">
-    <h2 id="park-events-title">Upcoming events</h2>
+    <h2 id="park-events-title">Live and upcoming events</h2>
     {% include "events/_park_events.html" %}
   </section>
 
-  <section class="park-detail-section" aria-labelledby="park-reviews-title">
+  <section class="park-detail-section" id="reviews" aria-labelledby="park-reviews-title">
     <h2 id="park-reviews-title">Reviews</h2>
-    <p class="park-detail-empty">☆ Not yet rated</p>
+    {% include "parks/includes/rating_badge.html" with park=park only %}
+    {% include "parks/includes/reviews.html" %}
   </section>
 </article>
 {% endblock %}

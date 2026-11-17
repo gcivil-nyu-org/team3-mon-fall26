@@ -1,0 +1,40 @@
+<section class="event-discussion" aria-labelledby="event-discussion-title">
+  <h2 id="event-discussion-title">Discussion</h2>
+  {% include "events/includes/section_messages.html" with section="discussion" %}
+  <ol class="event-discussion-list"
+      data-event-discussion-list
+      data-updates-url="{% url 'event_discussion_updates' event.pk %}"
+      data-latest-message-id="{{ latest_discussion_message_id }}"
+      data-discussion-open="{{ can_post_message|yesno:'true,false' }}">
+    {% for message in announcement_messages %}
+      {% include "events/includes/event_message.html" with message=message is_announcement=True %}
+    {% endfor %}
+    {% for message in regular_messages %}
+      {% include "events/includes/event_message.html" with message=message %}
+    {% endfor %}
+  </ol>
+  {% if not has_discussion_messages %}
+    <p class="event-discussion-empty">{% if can_post_message %}No messages yet. Ask a question below!{% else %}No messages were posted.{% endif %}</p>
+  {% endif %}
+  {% if can_post_message %}
+    {% if user.is_authenticated %}
+      <form class="event-discussion-form" method="post" action="{% url 'event_message_post' event.pk %}" data-event-discussion-form>
+        {% csrf_token %}
+        <label for="event-message-body">Your message</label>
+        <textarea id="event-message-body" name="body" rows="4" maxlength="{{ message_max_length }}" required></textarea>
+        {% if can_announce %}
+          <label class="event-discussion-announce-option">
+            <input type="checkbox" name="is_announcement" value="true">
+            Post as announcement
+          </label>
+        {% endif %}
+        <button class="btn btn--primary" type="submit">Post message</button>
+        <p class="event-discussion-status" role="status" aria-live="polite" data-event-discussion-status></p>
+      </form>
+    {% else %}
+      <p class="event-discussion-login"><a href="{% url 'login' %}?next={{ event.get_absolute_url|urlencode }}">Log in to join the discussion</a></p>
+    {% endif %}
+  {% else %}
+    <p class="event-discussion-closed" role="status">Discussion is closed for this event.</p>
+  {% endif %}
+</section>

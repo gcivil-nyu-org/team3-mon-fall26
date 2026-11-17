@@ -1,12 +1,16 @@
-/* Lookahead multi-select with removable pills (US-2.3 zip codes; reused by US-2.4 sports/facilities).
+/* Lookahead select with removable pills (US-2.3 zip codes; reused by US-2.4 sports/facilities and the
+ * US-3.9 park picker).
  *
- * Progressive enhancement: mark any <select multiple> with data-lookahead. Without JavaScript the
- * plain multi-select still submits repeated ?name= values. With JavaScript the select is hidden and
- * stays the single source of truth, so the form submits exactly the same parameters.
+ * Progressive enhancement: mark any <select> with data-lookahead. Without JavaScript the plain select
+ * still submits the same values. With JavaScript the select is hidden and stays the single source of
+ * truth, so the form submits exactly the same parameters. A <select multiple> keeps one pill per pick;
+ * a single select keeps at most one, and removing it falls back to the blank option.
  *
  * Optional attributes on the <select>:
  *   data-placeholder  text for the search box (default "Type to search")
  *   data-empty        message when nothing matches (default "No matches")
+ *   data-max-results  show at most this many suggestions, so long lists (2,000 parks) stay fast
+ *   data-more         message when suggestions were cut off (default "Keep typing to narrow the list")
  */
 (() => {
   'use strict';
@@ -32,6 +36,8 @@
     const doc = select.ownerDocument;
     const id = select.id || `lookahead-${++uid}`;
     const listId = `${id}-listbox`;
+    const single = !select.multiple;
+    const maxResults = Number(select.dataset.maxResults) || 0;
 
     const wrapper = doc.createElement('div');
     wrapper.className = 'lookahead';
@@ -91,7 +97,8 @@
     }
 
     function renderList() {
-      shown = suggestions(options(), input.value);
+      const found = suggestions(options(), input.value);
+      shown = maxResults ? found.slice(0, maxResults) : found;
       list.replaceChildren();
       if (!shown.length) {
         const empty = doc.createElement('li');
@@ -112,6 +119,12 @@
         item.addEventListener('click', () => choose(option));
         list.append(item);
       });
+      if (shown.length < found.length) {
+        const more = doc.createElement('li');
+        more.className = 'lookahead-more';
+        more.textContent = select.dataset.more || 'Keep typing to narrow the list';
+        list.append(more);
+      }
       list.hidden = false;
       input.setAttribute('aria-expanded', 'true');
       setActive(shown.length && input.value.trim() ? 0 : -1);
@@ -119,7 +132,8 @@
 
     function renderPills() {
       pills.replaceChildren();
-      options().filter((option) => option.selected).forEach((option) => {
+      // The blank option ("Select an NYC park") is selected when nothing is chosen, so it never gets a pill.
+      options().filter((option) => option.selected && option.value).forEach((option) => {
         const pill = doc.createElement('button');
         pill.type = 'button';
         pill.className = 'lookahead-pill';
@@ -141,7 +155,8 @@
     }
 
     function choose(option) {
-      option.selected = true;
+      if (single) options().forEach((other) => { other.selected = other === option; });
+      else option.selected = true;
       input.value = '';
       close();
       changed();
@@ -149,6 +164,10 @@
 
     function remove(option) {
       option.selected = false;
+      if (single) {
+        const blank = options().find((other) => !other.value);
+        if (blank) blank.selected = true;
+      }
       changed();
       input.focus();
     }
@@ -183,7 +202,7 @@
   }
 
   function enhanceAll(root) {
-    (root || document).querySelectorAll('select[multiple][data-lookahead]').forEach(enhance);
+    (root || document).querySelectorAll('select[data-lookahead]').forEach(enhance);
   }
 
   const api = {matches, suggestions, enhance, enhanceAll};

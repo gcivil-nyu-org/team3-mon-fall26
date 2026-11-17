@@ -54,6 +54,7 @@ class EventCreationAndCapacityTests(TestCase):
             'activity': Activity.BASKETBALL,
             'date': self.future_date,
             'time': '18:30',
+            'end_time': '20:00',
             'skill_level': SkillLevel.INTERMEDIATE,
             'capacity': '10',
             'description': 'Half-court 5v5 run, bring a dark and light shirt.',
@@ -292,10 +293,10 @@ class EventDiscoveryFeedTests(TestCase):
 
         self.assertContains(response, 'Pickup Basketball')
         self.assertContains(response, event.date.strftime('%b'))
-        self.assertContains(response, '6:30 PM')
+        self.assertContains(response, '6:30–8:30 PM')
         self.assertContains(response, 'Central Park')
         self.assertContains(response, 'Manhattan')
-        self.assertContains(response, 'Up to 12')
+        self.assertContains(response, '11 spots left')
         self.assertContains(response, 'Unlimited spots')
 
     def test_feed_excludes_past_even_with_retired_include_past_parameter(self):
@@ -321,6 +322,7 @@ class EventDiscoveryFeedTests(TestCase):
                 'activity': Activity.ULTIMATE_FRISBEE,
                 'date': (self.today + datetime.timedelta(days=4)).isoformat(),
                 'time': '15:00',
+                'end_time': '17:00',
                 'skill_level': SkillLevel.BEGINNER,
                 'capacity': '',
                 'description': 'Bring a disc if you have one.',
@@ -376,7 +378,7 @@ class EventDiscoveryFeedTests(TestCase):
 
     def test_empty_state(self):
         response = self.client.get(reverse('event_list'))
-        self.assertContains(response, 'No upcoming events')
+        self.assertContains(response, 'No events match your filters.')
 
     def test_feed_links_to_existing_event_detail_page(self):
         event = self.make_event()
@@ -557,6 +559,7 @@ class FoundationSchemaTests(TestCase):
                 'activity': 'Pickup Basketball',
                 'date': self.tomorrow.isoformat(),
                 'time': '18:30',
+                'end_time': '20:00',
                 'skill_level': SkillLevel.ALL,
                 'description': 'Free text is no longer allowed.',
             },
@@ -600,9 +603,9 @@ class EventRSVPTests(TestCase):
         rsvp = RSVP.objects.get(event=self.event, user=self.player)
         self.assertEqual(rsvp.status, RSVPStatus.ACTIVE)
         self.assertEqual(RSVP.objects.filter(event=self.event, status=RSVPStatus.ACTIVE).count(), 1)
-        self.assertRedirects(response, self.detail_url)
+        self.assertRedirects(response, self.detail_url + '#event-attendance-title')  # #122
         self.assertContains(response, '@player')
-        self.assertContains(response, '1 spot remaining')
+        self.assertContains(response, '1 spot left')
         self.assertContains(response, 'Attending · Cancel RSVP')
         self.assertContains(
             response, 'class="btn btn--primary" type="submit">Attending · Cancel RSVP</button>', html=False
@@ -618,7 +621,7 @@ class EventRSVPTests(TestCase):
         self.assertIn("You're already attending.", [str(message) for message in response.context['messages']])
         self.assertEqual(RSVP.objects.filter(event=self.event).count(), 1)
         self.assertEqual(RSVP.objects.get(event=self.event, user=self.player).status, RSVPStatus.ACTIVE)
-        self.assertContains(response, '1 spot remaining')
+        self.assertContains(response, '1 spot left')
         self.assertContains(response, '@player')
 
     def test_cancelled_rsvp_is_reactivated_without_adding_a_row(self):
@@ -628,33 +631,40 @@ class EventRSVPTests(TestCase):
         response = self.client.post(self.rsvp_url, follow=True)
 
         old_rsvp.refresh_from_db()
-        self.assertRedirects(response, self.detail_url)
+        self.assertRedirects(response, self.detail_url + '#event-attendance-title')  # #122
         self.assertEqual(old_rsvp.status, RSVPStatus.ACTIVE)
         self.assertEqual(RSVP.objects.filter(event=self.event, user=self.player).count(), 1)
         self.assertEqual(RSVP.objects.filter(event=self.event, status=RSVPStatus.ACTIVE).count(), 1)
         self.assertContains(response, '@player')
-        self.assertContains(response, '1 spot remaining')
+        self.assertContains(response, '1 spot left')
 
     def test_event_status_or_start_blocks_ui_and_direct_post(self):
+        # US-4.8 (#117): the page says an ended game has ended; joining is still refused as already started.
         cases = (
-            (EventStatus.CANCELLED, self.event.date, 'This event has been cancelled.'),
-            (EventStatus.REMOVED, self.event.date, 'This event has been removed.'),
+            (
+                EventStatus.CANCELLED,
+                self.event.date,
+                'This event has been cancelled.',
+                'This event has been cancelled.',
+            ),
+            (EventStatus.REMOVED, self.event.date, 'This event has been removed.', 'This event has been removed.'),
             (
                 EventStatus.SCHEDULED,
                 timezone.localdate() - datetime.timedelta(days=1),
+                'This event has ended.',
                 'This event has already started.',
             ),
         )
         self.client.force_login(self.player)
 
-        for status, event_date, reason in cases:
+        for status, event_date, note, reason in cases:
             with self.subTest(reason=reason):
                 self.event.status = status
                 self.event.date = event_date
                 self.event.save(update_fields=['status', 'date'])
 
                 page = self.client.get(self.detail_url)
-                self.assertContains(page, reason)
+                self.assertContains(page, note)
                 self.assertContains(
                     page, '<button class="btn btn--primary" type="button" disabled>Join event</button>', html=True
                 )
@@ -709,7 +719,7 @@ class EventRSVPTests(TestCase):
 
         accepted = self.client.post(self.rsvp_url, follow=True)
         self.assertContains(accepted, '@player')
-        self.assertContains(accepted, '1 spot remaining')
+        self.assertContains(accepted, '1 spot left')
         self.assertEqual(RSVP.objects.filter(event=self.event, status=RSVPStatus.ACTIVE).count(), 1)
 
     def test_organizer_has_no_join_control_or_rsvp_row_and_direct_post_is_rejected(self):
@@ -738,11 +748,11 @@ class EventRSVPTests(TestCase):
         self.client.force_login(self.player)
 
         page = self.client.get(self.detail_url)
-        self.assertContains(page, 'Your RSVP was removed by the organizer.')
+        self.assertContains(page, 'Your RSVP was removed by the organizer. You can&#x27;t rejoin this event.')
         self.assertNotContains(page, 'This event is full.')
         response = self.client.post(self.rsvp_url, follow=True)
 
-        self.assertContains(response, 'Your RSVP was removed by the organizer.')
+        self.assertContains(response, 'Your RSVP was removed by the organizer. You can&#x27;t rejoin this event.')
         self.assertEqual(RSVP.objects.filter(event=self.event, user=self.player).count(), 1)
         self.assertEqual(RSVP.objects.get(event=self.event, user=self.player).status, RSVPStatus.REMOVED)
 
@@ -760,11 +770,11 @@ class EventRSVPTests(TestCase):
         response = self.client.post(self.cancel_rsvp_url, follow=True)
 
         rsvp = RSVP.objects.get(event=self.event, user=self.player)
-        self.assertRedirects(response, self.detail_url)
+        self.assertRedirects(response, self.detail_url + '#event-attendance-title')  # #122
         self.assertEqual(rsvp.status, RSVPStatus.CANCELLED)
         self.assertContains(response, 'Your RSVP has been cancelled.')
         self.assertNotContains(response, '@player')
-        self.assertContains(response, '1 spot remaining')
+        self.assertContains(response, '1 spot left')
         self.assertContains(response, '>Join event</button>')
 
         rejoined = self.client.post(self.rsvp_url, follow=True)
@@ -786,7 +796,7 @@ class EventRSVPTests(TestCase):
         self.client.force_login(other_player)
         joined = self.client.post(self.rsvp_url, follow=True)
 
-        self.assertContains(cancelled, '1 spot remaining')
+        self.assertContains(cancelled, '1 spot left')
         self.assertEqual(RSVP.objects.get(event=self.event, user=other_player).status, RSVPStatus.ACTIVE)
         self.assertContains(joined, '@other-player')
 
@@ -797,7 +807,7 @@ class EventRSVPTests(TestCase):
         self.client.force_login(self.player)
 
         page = self.client.get(self.detail_url)
-        self.assertContains(page, 'This event has already started.')
+        self.assertContains(page, 'This event has ended.')
         self.assertNotContains(page, 'Attending · Cancel RSVP')
         response = self.client.post(self.cancel_rsvp_url, follow=True)
 

@@ -71,7 +71,11 @@ class EventsHubTests(TestCase):
         self.assertEqual(self.hub_link(create, 'Explore Events'), '/events/')
         detail = self.client.get(self.event.get_absolute_url())
         self.assertContains(detail, '<a href="/events/" aria-current="page">Explore Events</a>', html=True)
-        self.assertContains(detail, '<a class="events-hub-back" href="/events/">&larr; Back to results</a>', html=True)
+        self.assertContains(
+            detail,
+            '<a class="events-hub-back" href="/events/" data-explore-return>&larr; Back to results</a>',
+            html=True,
+        )
 
     def test_anonymous_create_login_return_keeps_results_session(self):
         self.client.get('/events/?view=list&tab=parks&zip=11211&zip=11222')

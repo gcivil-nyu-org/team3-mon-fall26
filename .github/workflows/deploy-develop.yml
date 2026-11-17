@@ -1,10 +1,10 @@
-name: Test and deploy develop
+name: Test and deploy main
 
 on:
   push:
-    branches: [develop]
+    branches: [develop, main]
   pull_request:
-    branches: [develop]
+    branches: [develop, main]
 
 permissions:
   contents: read
@@ -34,15 +34,15 @@ jobs:
         run: |
           python manage.py test
           python -m unittest discover -s infra -p 'test_*.py'
-      - name: Test map and filter interactions (Node built-in runner, no npm dependencies)
-        run: node --test events/js/explore.test.cjs events/js/lookahead-select.test.cjs
+      - name: Test map, filter, and event discussion interactions (Node built-in runner, no npm dependencies)
+        run: node --test events/js/explore.test.cjs events/js/lookahead-select.test.cjs events/js/event-discussion.test.cjs
       - name: Check deployment hook syntax
         run: |
           find .platform/hooks .platform/confighooks -name '*.sh' -exec bash -n {} \;
 
   deploy:
     needs: test
-    if: github.repository == 'gcivil-nyu-org/team3-mon-fall26' && github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    if: github.repository == 'gcivil-nyu-org/team3-mon-fall26' && github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

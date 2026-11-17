@@ -146,9 +146,9 @@ class AutomaticDeploymentTests(unittest.TestCase):
 
     def test_other_repositories_and_pull_requests_cannot_deploy(self):
         for repository, ref, event in [
-            ("someone/fork", "refs/heads/develop", "push"),
-            (deploy.REPOSITORY, "refs/heads/main", "push"),
-            (deploy.REPOSITORY, "refs/heads/develop", "pull_request"),
+            ("someone/fork", "refs/heads/main", "push"),
+            (deploy.REPOSITORY, "refs/heads/develop", "push"),
+            (deploy.REPOSITORY, "refs/heads/main", "pull_request"),
         ]:
             with (
                 self.subTest(repository=repository, ref=ref, event=event),
@@ -156,22 +156,23 @@ class AutomaticDeploymentTests(unittest.TestCase):
                     os.environ, {"GITHUB_REPOSITORY": repository, "GITHUB_REF": ref, "GITHUB_EVENT_NAME": event}
                 ),
             ):
-                with self.assertRaisesRegex(RuntimeError, "central develop"):
+                with self.assertRaisesRegex(RuntimeError, "central main"):
                     deploy.main()
 
-    @patch("deploy_ci.subprocess.check_output", side_effect=["a" * 40, "b" * 40 + "\trefs/heads/develop"])
+    @patch("deploy_ci.subprocess.check_output", side_effect=["a" * 40, "b" * 40 + "\trefs/heads/main"])
     def test_outdated_commit_is_skipped_before_any_aws_access(self, output):
         with patch.dict(
             os.environ,
             {
                 "GITHUB_REPOSITORY": deploy.REPOSITORY,
-                "GITHUB_REF": "refs/heads/develop",
+                "GITHUB_REF": "refs/heads/main",
                 "GITHUB_EVENT_NAME": "push",
                 "GITHUB_SHA": "a" * 40,
                 "GITHUB_RUN_ID": "123",
             },
         ):
             deploy.main()
+        self.assertEqual(output.call_args_list[-1], call(["git", "ls-remote", "origin", "refs/heads/main"], text=True))
 
 
 if __name__ == "__main__":

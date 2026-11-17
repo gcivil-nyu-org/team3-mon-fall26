@@ -36,14 +36,20 @@ The existing feed presentation stays in place until the map/list PR lands.
 | repeated `sport` | `Activity` values; OR. Events match sport; independently matching parks use active mapped facilities. A sport without a facility mapping does not narrow parks. |
 | repeated `facility` | Exact `Facility.SPORT_FIELDS` tokens on active facilities; AND |
 | `when=today` | New York calendar date |
-| `date_from`, `date_to` | Inclusive ISO date range; invalid/reversed ranges show a message and ignore both endpoints |
+| `date_from`, `date_to` | Inclusive ISO date range; invalid/reversed ranges show a message and ignore both endpoints. In public Explore a `date_from` older than 30 days moves up to the limit, and both pickers have that `min` (US-4.9 / #118); personal scopes have no limit |
 | `skill` | Specific level also includes all-skill events |
 | `scope` | `all`, `mine`, `attending`, `hosting`; personal scopes force `events_only` and include future cancelled/removed events |
+| repeated `phase` | `upcoming`, `live`, `ended` (US-4.8 / #117); OR. None chosen means `upcoming` + `live`; unknown values are ignored. Public Explore only keeps games that ended in the last 30 days (`ENDED_WINDOW_DAYS`, by New York date); personal scopes keep every ended game. The JSON feed is always `upcoming` only. US-4.9 (#118) adds the Phase checkboxes, which apply as soon as they change. At least one stays checked: unchecking the last one checks it again (without JavaScript, the server shows the default). Choosing exactly `upcoming` + `live` is stored as no phase filter, so the default never gets a pill or a `phase` parameter; each other choice gets a removable pill, and Clear filters returns to the default. When `ended` isn't chosen, the park panel says how many of the park's ended games are hidden and links to the same panel with `ended` added. |
 | `events_only=1` | Only parks with a positive matching-event count |
 | `park` | Active park ID; invalid, unknown or retired IDs ignored |
 | `view`, `tab` | Preserved state: map/list, events/parks; defaults map/events. Presentation follows in the next PR. |
 
-Public events are upcoming scheduled events at active parks. Displayed parks
+Public events are scheduled events at active parks in the chosen phases (upcoming
+and live by default). A game is upcoming until its start, live until its end time
+that day, then ended (`phase_q()` in `events/models.py`). Results are ordered by
+`phase_ordering()` in SQL: live first, then upcoming soonest first, then ended most
+recent first, so pages stay in order. Cancelled and removed games are in no phase;
+personal scopes show them alongside `upcoming` only. Displayed parks
 are active parks independently matching park filters **plus** parks hosting a
 matching event. Date/skill affect event counts, not independent park membership.
 All counts come from this exact matching-event queryset. EXISTS and a correlated
@@ -162,20 +168,21 @@ The existing `explore_park_preview` endpoint and `park_preview_context()` now
 render the full panel. It uses the same validated filters, active facilities,
 and `events/_park_events.html` as the park page from #94/#95. The panel uses
 `matching_events()` without an extra status filter, so its membership and count
-agree with the map and list. Public Explore only shows scheduled upcoming
-events. Personal scopes also retain the viewer's cancelled/removed future
-events, labelled with their status; ownership or an active RSVP is still required,
-and already-started events stay hidden. The full park page continues to show
-scheduled upcoming events only. Availability uses
+agree with the map and list. Public Explore shows scheduled games in the chosen
+phases (live and upcoming by default, see `phase` above). Personal scopes also retain the viewer's cancelled/removed future
+events, labelled with their status; ownership or an active RSVP is still required.
+The full park page shows live and upcoming games (US-4.8 / #117). Availability uses
 `with_confirmed_players()` and the park-page availability helper. Active RSVP
 membership is an EXISTS annotation, so badges do not add per-event queries.
 
 The desktop dialog is a side drawer; below 600px it becomes a bottom sheet.
-Map clicks and enhanced Quick view links use `park=<id>&panel=1`. The map focuses
-on the selected park, and the removable park pill displays its name. Closing the
-panel removes only the park/panel state. The existing hub session restores the
-open panel and repeated filters after visiting event or park pages or login.
-Without JavaScript, Quick view links directly to the full park page.
+Map clicks and Quick view links use `panel=<id>` for presentation. The separate
+`park=<id>` parameter still filters the results and adds a removable pill.
+Opening or closing the panel preserves that filter, the other filters, the map
+position and the current list page. Legacy `park=<id>&panel=1` links still open
+the panel. The hub session restores the open panel and repeated filters after
+visiting event or park pages or login. Without JavaScript, Quick view and its
+close link navigate to server-rendered versions of the same Explore page.
 
 The panel passes `?park=<id>` to Create Event; form pre-selection remains owned
 by #81. Ratings show "Not yet rated" until #42 is implemented. This feature does
@@ -184,4 +191,34 @@ not change event creation, joining, database models, or deployment settings.
 `events/test_park_panel.py` covers panel content, membership, availability and
 badges, URL/session restoration, missing data, escaping, invalid parks and a
 three-query budget that stays constant as organizers and RSVP rows increase.
-The JavaScript controller tests verify selected-park zoom and progressive links.
+The JavaScript controller tests verify panel navigation, history and legacy map focus.
+
+## Phase counts on the map and panel (US-4.10 / #119)
+
+`displayed_parks(..., include_live_count=True)` adds `live_count` for the map API.
+It counts scheduled live games **within the selected phases and all other
+filters**. The existing `event_count` still drives pin and cluster numbers.
+Pins are orange when `live_count > 0`, green for other matching events, and muted
+when empty. A cluster is orange if any child pin has matching live games; its
+number remains the sum of child event counts. The API still uses two data queries.
+
+`with_park_phase_counts()` annotates the park selected for either the initial
+page or the preview endpoint. `park_preview_context()` exposes these as
+`phase_counts` (`live`, `upcoming`, `ended`). These totals ignore only the phase
+selection, keep all other shared filters and scope permissions, and exclude
+cancelled/removed games. Public ended counts keep the existing 30-day window;
+personal scopes keep historical access. The selected event cards and their
+heading retain their existing membership, including labelled cancelled/removed
+future games in personal scopes. The phase breakdown explains that its counts
+span all phases, so it may differ from the selected-card total.
+
+Correlated count annotations use the existing park query: the panel still uses
+three data queries regardless of event, organizer, or RSVP count. No schema or
+AWS changes are needed. Tests: `events.test_map_phase_counts`,
+`events.test_park_panel`, and `events/js/explore.test.cjs`.
+
+Integration with #118 (merged in #131): the shared phase selector, pills, date
+controls, and hidden-ended link work with these counts. Following the panel's
+"show" link adds ended games to the selected cards and map count while keeping
+the all-phase breakdown unchanged. The existing filter bar and date policy are
+reused rather than duplicated.

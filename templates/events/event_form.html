@@ -1,14 +1,27 @@
 {% extends "base.html" %}
-{% load explore_tags %}
+{% load static explore_tags %}
 
-{% block title %}Create an Event · NYC Active{% endblock %}
+{% block title %}{% if is_edit %}Edit {{ event.display_title }}{% else %}Create an Event{% endif %} · NYC Active{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/lookahead-select.css' %}">
+{% endblock %}
 
 {% block content %}
+{% if is_edit %}
+{% include "events/_hub_header.html" with active="explore" back=True %}
+{% else %}
 {% include "events/_hub_header.html" with active="create" back=True %}
+{% endif %}
 <section class="event-card">
   <header class="event-card-header">
+    {% if is_edit %}
+    <h1 class="event-card-title">Edit Your Event</h1>
+    <p class="event-card-subtitle">Update the details players see. Changes show on the event page and in Explore Events.</p>
+    {% else %}
     <h1 class="event-card-title">Organize a Park Meetup</h1>
     <p class="event-card-subtitle">Pick an NYC park, set a schedule and skill level, and publish your game.</p>
+    {% endif %}
   </header>
 
   {% include "includes/form_errors.html" %}
@@ -18,13 +31,23 @@
     {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
 
     {% include "includes/form_field.html" with field=form.title %}
+    {% if is_edit %}
+    {# US-3.4 (#25): the park is locked after creation; the form has no park field, so a posted value is ignored. #}
+    <div class="field">
+      <label for="event-park-locked">Park location</label>
+      <div class="input-wrap input-wrap--text"><input id="event-park-locked" type="text" value="{{ event.park }}" readonly disabled aria-describedby="event-park-locked-help"></div>
+      <div class="field-help" id="event-park-locked-help">To change parks, cancel this event and create a new one.</div>
+    </div>
+    {% else %}
     {% include "includes/form_field.html" with field=form.park %}
+    {% endif %}
     {% include "includes/form_field.html" with field=form.meeting_spot %}
     {% include "includes/form_field.html" with field=form.activity %}
 
-    <div class="event-form-row">
+    <div class="event-form-row event-form-row--thirds">
       {% include "includes/form_field.html" with field=form.date %}
       {% include "includes/form_field.html" with field=form.time %}
+      {% include "includes/form_field.html" with field=form.end_time %}
     </div>
 
     <div class="event-form-row">
@@ -32,27 +55,47 @@
       {% include "includes/form_field.html" with field=form.capacity %}
     </div>
 
+    {% if 'host_is_playing' in form.fields %}
+    <div class="field event-host-playing-field{% if form.host_is_playing.errors %} field--error{% endif %}">
+      <label class="event-host-playing-toggle">{{ form.host_is_playing }} {{ form.host_is_playing.label }}</label>
+      {% for error in form.host_is_playing.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      <div class="field-help" id="{{ form.host_is_playing.auto_id }}_helptext">{{ form.host_is_playing.help_text }}</div>
+    </div>
+    {% endif %}
+
     {% include "includes/form_field.html" with field=form.description %}
 
     <div class="event-form-actions">
+      {% if is_edit %}
+      <a href="{{ event.get_absolute_url }}" class="btn btn--ghost">Cancel</a>
+      <button type="submit" class="btn btn--primary">Save changes</button>
+      {% else %}
       <a href="{% last_explore_url %}" class="btn btn--ghost">Cancel</a>
       <button type="submit" class="btn btn--primary">Publish event</button>
+      {% endif %}
     </div>
   </form>
 </section>
 {% endblock %}
 
 {% block scripts %}
+<script src="{% static 'js/lookahead-select.js' %}" defer></script>
 <script>
   (function () {
     const input = document.querySelector('input[data-capacity-input="true"]');
     if (!input) return;
     const fieldWrap = input.closest('.field');
-    const msg = 'Participant limit must be at least 1 or left blank for unlimited.';
+    const max = Number(input.dataset.capacityMax);
+    const tooSmall = 'Participant limit must be at least 1 or left blank for unlimited.';
+    const tooLarge = `Participant limit cannot exceed ${max.toLocaleString('en-US')}.`;
     input.addEventListener('input', () => {
       const raw = input.value.trim();
       const errors = fieldWrap.querySelectorAll('.field-error');
-      if (raw !== '' && (!Number.isInteger(Number(raw)) || Number(raw) < 1)) {
+      const value = Number(raw);
+      let msg = '';
+      if (raw !== '' && (!Number.isInteger(value) || value < 1)) msg = tooSmall;
+      else if (raw !== '' && value > max) msg = tooLarge;
+      if (msg) {
         fieldWrap.classList.add('field--error');
         if (errors.length === 0) {
           const p = document.createElement('p');

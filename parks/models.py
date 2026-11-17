@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -21,6 +23,15 @@ class Borough(models.TextChoices):
     QUEENS = 'Q', 'Queens'
     BRONX = 'X', 'Bronx'
     STATEN_ISLAND = 'R', 'Staten Island'
+
+
+class ParkQuerySet(models.QuerySet):
+    def with_review_summary(self):
+        """Live ratings shared by park pages, cards and panels; never cache a stored average."""
+        return self.annotate(
+            avg_rating=models.Avg('reviews__rating'),
+            review_count=models.Count('reviews', distinct=True),
+        )
 
 
 class Park(models.Model):
@@ -50,12 +61,35 @@ class Park(models.Model):
     )
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = ParkQuerySet.as_manager()
+
     class Meta:
         ordering = ['name', 'gispropnum']
 
     def __str__(self):
         borough_label = self.get_borough_display()
         return f'{self.name} ({borough_label})' if borough_label else self.name
+
+
+class Review(models.Model):
+    """One public park review per member (US-6.2)."""
+
+    park = models.ForeignKey(Park, on_delete=models.CASCADE, related_name='reviews')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='park_reviews')
+    rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at', '-pk']
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'park'], name='review_one_per_user_per_park'),
+            models.CheckConstraint(condition=models.Q(rating__gte=1, rating__lte=5), name='review_rating_1_to_5'),
+        ]
+
+    def __str__(self):
+        return f'{self.user} on {self.park}: {self.rating}/5'
 
 
 class Facility(models.Model):

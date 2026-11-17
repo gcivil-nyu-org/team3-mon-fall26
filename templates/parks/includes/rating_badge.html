@@ -1,0 +1,1 @@
+<p class="explore-rating park-rating">{% if park.review_count %}<span aria-hidden="true">★</span> {{ park.avg_rating|floatformat:1 }} ({{ park.review_count }} review{{ park.review_count|pluralize }}){% else %}<span aria-hidden="true">☆</span> Not yet rated{% endif %}</p>

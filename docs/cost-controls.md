@@ -39,7 +39,7 @@ Pages use presigned URLs rather than CloudFront, so the distribution keeps its
 single Beanstalk origin and the guard's origin check stays valid. A lifecycle rule
 aborts incomplete uploads and removes noncurrent versions after a day.
 
-Automatic develop deployment uses standard GitHub-hosted Linux runners for this
+Automatic main deployment uses standard GitHub-hosted Linux runners for this
 public repository. It adds no AWS build service or server. Source bundles use a
 dedicated prefix in the existing S3 bucket; storage/request usage can still accrue.
 No GitHub cache or artifact uploads are configured. The deployment script checks

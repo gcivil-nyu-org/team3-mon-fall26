@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from accounts.models import Profile
 from parks.models import Borough, Park
 
 from .models import Activity, Event, EventStatus, NYC_TZ, RSVP, RSVPStatus
@@ -55,7 +56,7 @@ class EventManagementTestCase(TestCase):
 
 
 class EventAccessControlTests(EventManagementTestCase):
-    """#27. The edit (#25) and remove-attendee (#33) URLs reuse the same mixin when they land."""
+    """#27. The edit (#25) and remove-attendee (#33) URLs reuse the same mixin."""
 
     def test_non_owner_sees_no_cancel_control(self):
         self.client.force_login(self.other)
@@ -100,13 +101,145 @@ class EventAccessControlTests(EventManagementTestCase):
         self.assertEqual(response.status_code, 404)
 
 
+class EventParticipantRemovalTests(EventManagementTestCase):
+    def setUp(self):
+        super().setUp()
+        self.rsvp = RSVP.objects.create(event=self.event, user=self.player)
+        self.url = reverse('event_participant_remove', kwargs={'pk': self.event.pk, 'rsvp_pk': self.rsvp.pk})
+
+    def test_organizer_removes_active_participant_without_deleting_rsvp(self):
+        self.client.force_login(self.host)
+
+        response = self.client.post(self.url, follow=True)
+
+        self.rsvp.refresh_from_db()
+        self.assertRedirects(response, self.detail_url + '#event-attendance-title')  # #122
+        self.assertEqual(self.rsvp.status, RSVPStatus.REMOVED)
+        self.assertContains(response, 'Participant removed from the event.')
+        self.assertNotContains(response, '@manage-player')
+
+    def test_administrator_can_remove_active_participant(self):
+        self.client.force_login(self.admin)
+
+        self.client.post(self.url)
+
+        self.rsvp.refresh_from_db()
+        self.assertEqual(self.rsvp.status, RSVPStatus.REMOVED)
+
+    def test_only_managers_see_remove_controls(self):
+        self.assertNotContains(self.client.get(self.detail_url), '>Remove</button>')
+        self.client.force_login(self.host)
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, 'class="btn btn--ghost event-roster-remove"')
+        self.assertContains(response, r"Remove @manage\u002Dplayer from this event?")
+
+    def test_roster_members_link_to_their_profiles(self):
+        response = self.client.get(self.detail_url)
+
+        self.assertContains(response, reverse('public_profile', kwargs={'username': self.host.username}))
+        self.assertContains(response, reverse('public_profile', kwargs={'username': self.player.username}))
+
+    def test_started_event_hides_remove_control_and_rejects_removal(self):
+        self.event.date = self.now.date()
+        self.event.time = datetime.time(11)
+        self.event.save(update_fields=['date', 'time'])
+        self.client.force_login(self.host)
+
+        page = self.client.get(self.detail_url)
+        response = self.client.post(self.url, follow=True)
+
+        self.rsvp.refresh_from_db()
+        self.assertNotContains(page, '>Remove</button>')
+        self.assertEqual(self.rsvp.status, RSVPStatus.ACTIVE)
+        self.assertContains(response, 'This event has already started, so participants can no longer be removed.')
+
+    def test_cancelled_or_removed_event_hides_remove_control_and_rejects_removal(self):
+        self.client.force_login(self.host)
+        for status in (EventStatus.CANCELLED, EventStatus.REMOVED):
+            with self.subTest(status=status):
+                Event.objects.filter(pk=self.event.pk).update(status=status)
+
+                page = self.client.get(self.detail_url)
+                response = self.client.post(self.url, follow=True)
+
+                self.rsvp.refresh_from_db()
+                self.assertNotContains(page, '>Remove</button>')
+                self.assertEqual(self.rsvp.status, RSVPStatus.ACTIVE)
+                self.assertContains(response, 'Participants can only be removed from scheduled events.')
+                Event.objects.filter(pk=self.event.pk).update(status=EventStatus.SCHEDULED)
+
+    def test_roster_shows_member_skill_level_when_set(self):
+        profile, _ = Profile.objects.get_or_create(user=self.player)
+        profile.skill_level = 'intermediate'
+        profile.save(update_fields=['skill_level'])
+        self.client.force_login(self.host)
+
+        response = self.client.get(self.detail_url)
+
+        self.assertContains(response, '@manage-player</a> <span class="event-roster-skill">Intermediate</span>')
+
+    def test_roster_omits_member_skill_level_when_not_set(self):
+        self.client.force_login(self.host)
+
+        response = self.client.get(self.detail_url)
+
+        self.assertNotContains(response, '<span class="event-roster-skill"></span>')
+
+    def test_non_manager_cannot_remove_participant(self):
+        self.client.force_login(self.other)
+
+        self.assertEqual(self.client.post(self.url).status_code, 403)
+
+        self.rsvp.refresh_from_db()
+        self.assertEqual(self.rsvp.status, RSVPStatus.ACTIVE)
+
+    def test_anonymous_request_redirects_to_login(self):
+        login_url = f"{reverse('login')}?next={self.detail_url}"
+
+        self.assertRedirects(self.client.post(self.url), login_url)
+
+        self.rsvp.refresh_from_db()
+        self.assertEqual(self.rsvp.status, RSVPStatus.ACTIVE)
+
+    def test_removal_is_post_only(self):
+        self.client.force_login(self.host)
+
+        self.assertEqual(self.client.get(self.url).status_code, 405)
+
+        self.rsvp.refresh_from_db()
+        self.assertEqual(self.rsvp.status, RSVPStatus.ACTIVE)
+
+    def test_wrong_event_rsvp_returns_404(self):
+        other_event = self.make_event()
+        self.client.force_login(self.host)
+
+        response = self.client.post(
+            reverse('event_participant_remove', kwargs={'pk': other_event.pk, 'rsvp_pk': self.rsvp.pk})
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.rsvp.refresh_from_db()
+        self.assertEqual(self.rsvp.status, RSVPStatus.ACTIVE)
+
+    def test_already_inactive_rsvp_is_not_changed(self):
+        self.rsvp.status = RSVPStatus.CANCELLED
+        self.rsvp.save(update_fields=['status'])
+        self.client.force_login(self.host)
+
+        response = self.client.post(self.url, follow=True)
+
+        self.rsvp.refresh_from_db()
+        self.assertEqual(self.rsvp.status, RSVPStatus.CANCELLED)
+        self.assertContains(response, 'This participant is no longer attending this event.')
+
+
 class EventCancelTests(EventManagementTestCase):
     """#28."""
 
     def test_organizer_cancels_and_the_row_is_kept(self):
         self.client.force_login(self.host)
         response = self.client.post(self.url, follow=True)
-        self.assertRedirects(response, self.detail_url)
+        self.assertRedirects(response, self.detail_url + '#event-attendance-title')  # #122
         self.assert_status(EventStatus.CANCELLED)
         self.assertContains(response, 'Cancelled by the host')
         self.assertContains(response, 'Your event has been cancelled.')

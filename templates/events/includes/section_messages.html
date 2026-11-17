@@ -1,0 +1,8 @@
+{% load section_messages %}
+{% with section_list=messages|in_section:section %}
+  {% if section_list %}
+    <div class="messages{% if section != 'page' %} messages--in-section{% endif %}">
+      {% for message in section_list %}{% include "includes/message.html" %}{% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}

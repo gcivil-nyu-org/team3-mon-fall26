@@ -21,7 +21,7 @@ from parks.models import Borough, Park
 
 SAMPLE_ORGANIZER = 'sample_organizer'
 
-# (title, activity, preferred park name, borough, days from today, start time, skill, capacity or None,
+# (title, activity, preferred park name, borough, days from today, start time, end time, skill, capacity or None,
 #  meeting spot, description)
 SAMPLE_EVENTS = [
     (
@@ -31,6 +31,7 @@ SAMPLE_EVENTS = [
         Borough.BROOKLYN,
         1,
         '10:00',
+        '12:00',
         SkillLevel.ALL,
         22,
         'Long Meadow, north end',
@@ -43,6 +44,7 @@ SAMPLE_EVENTS = [
         Borough.MANHATTAN,
         1,
         '07:30',
+        '08:30',
         SkillLevel.ALL,
         None,
         'Reservoir entrance at East 90th St',
@@ -55,6 +57,7 @@ SAMPLE_EVENTS = [
         Borough.MANHATTAN,
         2,
         '14:00',
+        '16:00',
         SkillLevel.COMPETITIVE,
         15,
         'Basketball courts by the arch',
@@ -67,6 +70,7 @@ SAMPLE_EVENTS = [
         Borough.QUEENS,
         3,
         '16:00',
+        '18:00',
         SkillLevel.INTERMEDIATE,
         20,
         'Field 7 near the Unisphere',
@@ -79,6 +83,7 @@ SAMPLE_EVENTS = [
         Borough.MANHATTAN,
         4,
         '09:00',
+        '10:30',
         SkillLevel.BEGINNER,
         8,
         'Courts at West 96th St',
@@ -91,6 +96,7 @@ SAMPLE_EVENTS = [
         Borough.BRONX,
         5,
         '09:30',
+        '12:00',
         SkillLevel.ALL,
         None,
         'Nature Center parking lot',
@@ -103,6 +109,7 @@ SAMPLE_EVENTS = [
         Borough.QUEENS,
         6,
         '13:00',
+        '15:00',
         SkillLevel.ALL,
         16,
         'Sand courts by the pool',
@@ -115,6 +122,7 @@ SAMPLE_EVENTS = [
         Borough.STATEN_ISLAND,
         7,
         '10:00',
+        '13:00',
         SkillLevel.INTERMEDIATE,
         20,
         'Greenbelt Nature Center',
@@ -127,6 +135,7 @@ SAMPLE_EVENTS = [
         Borough.BROOKLYN,
         8,
         '18:30',
+        '20:30',
         SkillLevel.INTERMEDIATE,
         12,
         'Courts on Driggs Ave',
@@ -139,6 +148,7 @@ SAMPLE_EVENTS = [
         Borough.BROOKLYN,
         10,
         '07:00',
+        '08:30',
         SkillLevel.INTERMEDIATE,
         6,
         'Court 3',
@@ -151,6 +161,7 @@ SAMPLE_EVENTS = [
         Borough.BRONX,
         12,
         '11:00',
+        '13:00',
         SkillLevel.ALL,
         14,
         'Turf field behind the stadium',
@@ -163,6 +174,7 @@ SAMPLE_EVENTS = [
         Borough.BROOKLYN,
         14,
         '07:00',
+        '08:00',
         SkillLevel.BEGINNER,
         None,
         'Pier 1 lawn',
@@ -175,6 +187,7 @@ SAMPLE_EVENTS = [
         Borough.STATEN_ISLAND,
         16,
         '17:00',
+        '19:00',
         SkillLevel.BEGINNER,
         12,
         'Courts near the boathouse',
@@ -188,6 +201,7 @@ SAMPLE_EVENTS = [
         Borough.BROOKLYN,
         -6,
         '10:00',
+        '12:00',
         SkillLevel.ALL,
         22,
         'Long Meadow, north end',
@@ -200,12 +214,31 @@ SAMPLE_EVENTS = [
         Borough.MANHATTAN,
         -3,
         '07:30',
+        '08:30',
         SkillLevel.ALL,
         None,
         'Reservoir entrance at East 90th St',
         'Already happened. Shows up only with "Include past events".',
     ),
 ]
+
+
+# US-4.8 (#117): one game that's on when the command runs, so the LIVE badge shows locally.
+LIVE_SAMPLE = dict(
+    title='Drop-In Basketball Run',
+    activity=Activity.BASKETBALL,
+    meeting_spot='Main courts',
+    skill_level=SkillLevel.ALL,
+    capacity=12,
+    description='Running full court right now. Come by before it wraps up.',
+)
+
+
+def live_window(now):
+    """A start 30 minutes ago and an end 90 minutes from now, kept on today's date."""
+    start = max(now - datetime.timedelta(minutes=30), now.replace(hour=0, minute=0, second=0, microsecond=0))
+    end = min(now + datetime.timedelta(minutes=90), now.replace(hour=23, minute=59, second=0, microsecond=0))
+    return start.time().replace(second=0, microsecond=0), end.time()
 
 
 def pick_park(name, borough):
@@ -246,6 +279,7 @@ class Command(BaseCommand):
             borough,
             days,
             start,
+            end,
             skill,
             capacity,
             meeting_spot,
@@ -259,10 +293,24 @@ class Command(BaseCommand):
                 meeting_spot=meeting_spot,
                 date=today + datetime.timedelta(days=days),
                 time=datetime.time.fromisoformat(start),
+                end_time=datetime.time.fromisoformat(end),
                 skill_level=skill,
                 capacity=capacity,
                 description=description,
             )
 
-        past = sum(1 for row in SAMPLE_EVENTS if row[4] < 0)
-        self.stdout.write(self.style.SUCCESS(f'Created {len(SAMPLE_EVENTS)} sample events ({past} in the past).'))
+        now = timezone.now().astimezone(NYC_TZ)
+        start, end = live_window(now)
+        Event.objects.create(
+            organizer=organizer,
+            park=pick_park('Rucker Park', Borough.MANHATTAN),
+            date=now.date(),
+            time=start,
+            end_time=end,
+            **LIVE_SAMPLE,
+        )
+
+        ended = sum(1 for row in SAMPLE_EVENTS if row[4] < 0)
+        self.stdout.write(
+            self.style.SUCCESS(f'Created {len(SAMPLE_EVENTS) + 1} sample events ({ended} ended, 1 live right now).')
+        )

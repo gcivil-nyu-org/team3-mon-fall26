@@ -221,20 +221,33 @@ list only the current photo.
 permits internal Host headers only on `/health/`; other URLs keep host checks.
 
 The manual procedure remains available for recovery. Normal updates to the
-central `develop` branch now use the workflow described below.
+central `main` branch now use the workflow described below.
 
-## Automatic develop deployment
+## Automatic main deployment
 
-`.github/workflows/deploy-develop.yml` runs on pushes and PRs targeting `develop`.
+The workflow filename remains `deploy-develop.yml` to preserve its existing
+Actions history; its deployment target is now `main`. Continue development on
+`develop` and release reviewed changes through PRs to `main`. Develop changes
+need local testing or a separately provisioned staging site; this change does
+not create another environment. The public URL, existing database, uploaded
+media, and test accounts remain in the same AWS environment.
+
+For the first main release, update the existing `nyc-active-github-deploy` role's
+trust policy to `infra/github-deploy-trust.json` before the release PR merges.
+This replaces the develop branch subject with main and grants no other branch
+access. Sync this deployment configuration back to develop through a reviewed
+PR so future develop pushes run tests without attempting a deployment.
+
+`.github/workflows/deploy-develop.yml` runs on pushes and PRs targeting `develop` and `main`.
 Every run checks dependencies, Django configuration and migrations, application
 tests, infrastructure safety tests and shell hook syntax. Only a successful
-**push to the central develop branch** can obtain AWS credentials and deploy.
-Forks, feature branches, `main`, and unmerged PRs cannot publish to this environment.
+**push to the central main branch** can obtain AWS credentials and deploy.
+Forks, feature branches, `develop`, and unmerged PRs cannot publish to this environment.
 
 AWS authentication uses GitHub OIDC and the `nyc-active-github-deploy` role.
 There are no long-lived AWS keys in GitHub. The trust policy uses the immutable
 organization/repository IDs reported by this repository's OIDC settings, plus
-the exact `refs/heads/develop` subject and `sts.amazonaws.com` audience.
+the exact `refs/heads/main` subject and `sts.amazonaws.com` audience.
 The policy/trust documents are in `infra/github-deploy-*.json`. Only the existing
 team environment, its application versions, dedicated source-bundle and
 Beanstalk extension-cache and existing team-environment runtime prefixes in the existing bucket,
@@ -251,7 +264,7 @@ exact existing stack when Beanstalk changes deployment-command metadata.
 There are no stack-creation or instance-start permissions.
 
 The deploy job is serialized and an active release is never cancelled by a new
-push. An older queued commit skips deployment if develop has already advanced.
+push. An older queued commit skips deployment if main has already advanced.
 The script publishes an exact git archive as `gha-<run id>-<attempt>-<commit>`, excluding
 workflow files, infrastructure tooling, local databases and credentials.
 It changes only the existing environment's version label, retaining AllAtOnce
@@ -279,7 +292,7 @@ migrations are not reversed by this operation; review backwards compatibility
 when introducing schema changes. If the environment is busy or budget-stopped,
 the workflow fails without forcing recovery.
 
-Find progress and failures under GitHub **Actions → Test and deploy develop**.
+Find progress and failures under GitHub **Actions → Test and deploy main**.
 After fixing a transient problem, use **Re-run jobs** on the existing run;
 outdated commits are skipped. Fix failed tests through a new PR. If publication
 must be suspended, disable this workflow in GitHub Actions; this does not stop

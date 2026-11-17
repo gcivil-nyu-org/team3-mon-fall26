@@ -14,6 +14,9 @@
   --surface: #ffffff;
   --bg: #f6f8f7;
   --danger: #b42318;
+  --live: #f79009;
+  --live-ink: #b54708;
+  --ended-bg: #eaecf0;
   --danger-bg: #fef3f2;
   --danger-border: #fecdca;
   --success: #067647;
@@ -367,6 +370,15 @@ a:focus-visible {
   color: var(--success);
   background: var(--success-bg);
   border-color: var(--success-border);
+}
+
+/* #122: messages shown inside the event-page section an action returns to. */
+.messages--in-section {
+  margin-top: 12px;
+}
+
+.messages--in-section .alert {
+  margin-bottom: 12px;
 }
 
 /* Auth pages: image panel + form panel */
@@ -959,11 +971,18 @@ a:focus-visible {
 .event-form-row {
   display: grid;
   gap: 16px;
+  /* Keep the inputs lined up when only some fields in the row have help text or errors under them. */
+  align-items: start;
 }
 
 @media (min-width: 640px) {
   .event-form-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  /* Date, start time and end time (US-3.11) */
+  .event-form-row--thirds {
+    grid-template-columns: 1fr 1fr 1fr;
   }
 }
 
@@ -1049,7 +1068,332 @@ a:focus-visible {
   border-radius: var(--radius);
 }
 
+.event-attendance {
+  padding-top: 20px;
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.event-attendance-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.event-attendance-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.event-attendance-count {
+  min-width: 28px;
+  padding: 2px 8px;
+  font-size: 0.8125rem;
+  text-align: center;
+  color: var(--green-900);
+  background: var(--green-50);
+  border-radius: 999px;
+}
+
+.event-spots {
+  font-weight: 700;
+  color: var(--green-700);
+}
+
+.event-spots--muted {
+  color: var(--muted);
+}
+
+.event-spots-bar {
+  height: 8px;
+  overflow: hidden;
+  background: var(--green-50);
+  border-radius: 999px;
+}
+
+.event-spots-bar span {
+  display: block;
+  height: 100%;
+  background: var(--green-600);
+  border-radius: inherit;
+}
+
+.event-spots-caption {
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.event-roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 16px 0 0;
+  list-style: none;
+}
+
+.event-roster-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  font-size: 0.875rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.event-roster-avatar {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  background: var(--green-50);
+  border-radius: 50%;
+}
+
+.event-roster-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.event-roster-avatar .profile-photo-placeholder {
+  width: 14px;
+  height: 14px;
+}
+
+.event-roster-tag {
+  padding: 1px 6px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--green-900);
+  border-radius: 999px;
+}
+
+.event-roster-skill {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.event-roster-remove {
+  min-height: 28px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+}
+
+.event-roster-empty {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.event-attendance-actions {
+  margin-top: 20px;
+}
+
+.event-attendance-actions > p {
+  margin: 12px 0 0;
+}
+
+/* Host's "I'm playing in this game" switch: create form and event page (US-3.10 / #82). */
+.event-host-playing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.event-host-playing-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.event-host-playing-toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--green-700);
+}
+
+.event-host-playing-toggle:has(input:disabled) {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.event-host-playing-field .field-help {
+  margin-top: 4px;
+}
+
+.event-attendance-note {
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+  background: var(--bg);
+  border-radius: var(--radius);
+}
+
+.event-discussion {
+  padding-top: 20px;
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.event-discussion h2 {
+  margin: 0 0 12px;
+  font-size: 1.125rem;
+}
+
+.event-discussion-list {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.event-discussion-message {
+  padding: 12px;
+  color: var(--ink-2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.event-discussion-message--announcement {
+  border-color: var(--green-600);
+}
+
+.event-discussion-message-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 8px;
+  font-size: 0.8125rem;
+}
+
+.event-discussion-message-header a {
+  font-weight: 700;
+}
+
+.event-discussion-message-header time {
+  color: var(--muted);
+}
+
+.event-discussion-announcement-label {
+  font-weight: 700;
+  color: var(--green-700);
+}
+
+.event-discussion-message-edited {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.event-discussion-message p,
+.event-discussion-empty {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.event-discussion-form {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.event-discussion-form label,
+.event-discussion-edit-form label {
+  font-weight: 600;
+}
+
+.event-discussion-form textarea,
+.event-discussion-edit-form textarea {
+  width: min(100%, 680px);
+  min-height: 100px;
+  padding: 10px 12px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+}
+
+.event-discussion-message-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.event-discussion-message-actions .btn,
+.event-discussion-edit-actions .btn {
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 0.8125rem;
+}
+
+.event-discussion-message-actions form {
+  margin: 0;
+}
+
+.event-discussion-edit-form {
+  margin-top: 8px;
+}
+
+.event-discussion-edit-form textarea {
+  display: block;
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+}
+
+.event-discussion-edit-status {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.event-discussion-delete-status {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.event-discussion-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.event-discussion-login,
+.event-discussion-closed {
+  margin: 16px 0 0;
+  font-weight: 600;
+}
+
 .event-manage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   padding-top: 20px;
   margin-top: 20px;
   border-top: 1px solid var(--border);
@@ -1173,9 +1517,26 @@ a:focus-visible {
   transform: translateY(-1px);
 }
 
-.discover-item.is-past {
-  opacity: 0.65;
-  border-left-color: var(--muted);
+/* US-4.8 (#117): live games get an orange outline; ended games are grey but keep readable text. */
+.discover-item--live {
+  border-color: #fec84b;
+  border-left-color: var(--live);
+}
+
+.discover-item--ended {
+  background: var(--bg);
+  border-left-color: var(--placeholder);
+  box-shadow: none;
+}
+
+.discover-item--static:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.discover-item--ended .discover-date {
+  color: var(--ink-2);
+  background: var(--ended-bg);
 }
 
 .discover-link {
@@ -1234,6 +1595,24 @@ a:focus-visible {
   box-shadow: inset 0 0 0 1px var(--green-700);
 }
 
+.event-badge--live {
+  color: var(--live-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--live);
+}
+
+.event-badge--ended {
+  color: var(--ink-2);
+  background: var(--ended-bg);
+}
+
+.event-badge--host {
+  color: #fff;
+  background: var(--green-900);
+}
+
 .discover-name {
   font-size: 1.0625rem;
   font-weight: 700;
@@ -1259,7 +1638,7 @@ a:focus-visible {
   color: var(--green-700);
 }
 
-.discover-spots--ended {
+.discover-spots--muted {
   color: var(--muted);
 }
 

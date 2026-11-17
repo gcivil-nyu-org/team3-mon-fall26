@@ -1,4 +1,4 @@
-/* Lookahead multi-select with pills (static/js/lookahead-select.js). US-2.3 zip codes; reused by US-2.4. */
+/* Lookahead select with pills (static/js/lookahead-select.js). US-2.3 zip codes; reused by US-2.4 and the US-3.9 park picker. */
 .lookahead { position:relative; }
 .lookahead-control { display:flex; flex-wrap:wrap; align-items:center; gap:6px; min-height:42px; padding:5px 8px; border:1px solid var(--border); border-radius:8px; background:#fff; cursor:text; }
 .lookahead-control:focus-within { outline:2px solid var(--green-600); outline-offset:2px; }
@@ -11,4 +11,4 @@
 .lookahead-list { position:absolute; z-index:1100; top:calc(100% + 4px); left:0; right:0; max-height:240px; overflow-y:auto; margin:0; padding:4px; list-style:none; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 8px 24px #1018281f; }
 .lookahead-option { padding:8px 10px; border-radius:6px; font-size:.875rem; color:var(--ink); cursor:pointer; }
 .lookahead-option[aria-selected="true"], .lookahead-option:hover { background:var(--green-50); color:var(--green-900); }
-.lookahead-empty { padding:8px 10px; font-size:.8125rem; color:var(--muted); }
+.lookahead-empty, .lookahead-more { padding:8px 10px; font-size:.8125rem; color:var(--muted); }
