@@ -4,6 +4,7 @@ Filter stories extend this module and includes/explore_filters.html rather than
 implementing a separate queryset for each presentation (US-2.1 / US-2.2).
 """
 
+import datetime
 import re
 from functools import reduce
 from operator import or_
@@ -16,7 +17,21 @@ from django.utils import timezone
 
 from parks.models import Borough, Facility, Park, comma_token_q
 
-from .models import ACTIVITY_FACILITY_KEYS, Activity, Event, NYC_TZ, RSVP, RSVPStatus, SkillLevel
+from .models import (
+    ACTIVITY_FACILITY_KEYS,
+    DEFAULT_PHASES,
+    ENDED_WINDOW_DAYS,
+    NYC_TZ,
+    RSVP,
+    Activity,
+    Event,
+    EventPhase,
+    EventStatus,
+    RSVPStatus,
+    SkillLevel,
+    phase_ordering,
+    phase_q,
+)
 
 
 class ValidChoices(forms.MultipleChoiceField):
@@ -104,6 +119,14 @@ class ExploreFilterForm(forms.Form):
         choices=[('all', 'All events'), ('mine', 'All mine'), ('attending', 'Attending'), ('hosting', 'Hosting')],
     )
     events_only = forms.BooleanField(required=False, label='Only parks with events')
+    # US-4.8 (#117): repeated ?phase= (upcoming, live, ended). None chosen means upcoming and live.
+    # US-4.9 (#118): shown as checkboxes that apply as soon as they change, like borough and zip.
+    phase = ValidChoices(
+        required=False,
+        choices=EventPhase.choices,
+        label='Phase',
+        widget=forms.CheckboxSelectMultiple(attrs={'data-autosubmit': ''}),
+    )
     park = forms.IntegerField(required=False, min_value=1)
     view = forms.ChoiceField(required=False, choices=[('map', 'Map'), ('list', 'List')])
     tab = forms.ChoiceField(required=False, choices=[('events', 'Events'), ('parks', 'Parks')])
@@ -130,12 +153,22 @@ class ExploreFilterForm(forms.Form):
         return data
 
 
+def earliest_public_date(now=None):
+    """The oldest date public Explore reaches back to: today's New York date minus the ended window (US-4.9)."""
+    today = (now or timezone.now()).astimezone(NYC_TZ).date()
+    return today - datetime.timedelta(days=ENDED_WINDOW_DAYS)
+
+
 def parse_filters(params):
     form = ExploreFilterForm(params)
     form.is_valid()
     filters = {name: form.cleaned_data.get(name) for name in form.fields}
-    for name in ('zip', 'sport', 'facility'):
+    for name in ('zip', 'sport', 'facility', 'phase'):
         filters[name] = filters.get(name) or []
+    # US-4.9 (#118): one spelling per selection. Upcoming + Live is the default, so it's stored as no
+    # phase filter at all: no pill, a clean URL, and "Clear filters" returns to it.
+    phases = [phase for phase in EventPhase.values if phase in filters['phase']]
+    filters['phase'] = [] if set(phases) == set(DEFAULT_PHASES) else phases
     filters['view'] = filters.get('view') or 'map'
     filters['tab'] = filters.get('tab') or 'events'
     filters['scope'] = filters.get('scope') or 'all'
@@ -143,6 +176,10 @@ def parse_filters(params):
     # A malformed range must never accidentally become an open-ended range.
     if 'date_from' in form.errors or 'date_to' in form.errors:
         filters['date_from'] = filters['date_to'] = None
+    # US-4.9 (#118): public Explore reaches back 30 days at most, so an older From date (say, from an
+    # old shared link) moves up to the limit. My Events keep the full history.
+    if filters['scope'] == 'all' and filters['date_from'] and filters['date_from'] < earliest_public_date():
+        filters['date_from'] = earliest_public_date()
     return form, filters
 
 
@@ -175,16 +212,27 @@ def configure_filter_form(form, filters):
     # Keep a selected zip visible (and removable) even if its park was retired since it was chosen.
     zipcodes = sorted(set(zip_code_choices()) | set(filters['zip']))
     form.fields['zip'].widget.choices = [(z, z) for z in zipcodes]
-    if filters['scope'] != 'all':
-        form.data = form.data.copy()
-        form.data['events_only'] = '1'
+    data = form.data.copy()
+    # US-4.9 (#118): with no phase chosen, show the default (Upcoming and Live) as checked.
+    data.setlist('phase', filters['phase'] or [str(phase) for phase in DEFAULT_PHASES])
+    if filters['scope'] == 'all':
+        # The date pickers don't offer days before the 30-day limit, and a From date that was moved up
+        # shows the date actually used.
+        earliest = earliest_public_date().isoformat()
+        for name in ('date_from', 'date_to'):
+            form.fields[name].widget.attrs['min'] = earliest
+        if filters['date_from']:
+            data['date_from'] = filters['date_from'].isoformat()
+    else:
+        data['events_only'] = '1'
         form.fields['events_only'].widget.attrs['disabled'] = True
+    form.data = data
 
 
 def filter_pills(filters):
     params = filter_params(filters)
     pills = []
-    for name in ('q', 'borough', 'zip', 'sport', 'facility', 'when', 'date_from', 'date_to', 'skill', 'park'):
+    for name in ('q', 'borough', 'zip', 'sport', 'facility', 'when', 'date_from', 'date_to', 'skill', 'phase', 'park'):
         values = filters.get(name)
         if not values:
             continue
@@ -221,16 +269,27 @@ def park_location_filters(parks, filters):
     return parks
 
 
+def selected_phases(filters):
+    return filters.get('phase') or list(DEFAULT_PHASES)
+
+
 def matching_events(filters, user=None):
     """One definition of event membership; presentation code adds its own eager loading."""
-    events = Event.objects.all()
+    now = timezone.now()
+    phases = selected_phases(filters)
+    membership = Q(status=EventStatus.SCHEDULED) & reduce(or_, (phase_q(phase, now) for phase in phases))
     if filters.get('scope', 'all') == 'all':
-        events = events.upcoming()
+        events = Event.objects.filter(membership)
+        # US-4.8 (#117): public Explore drops games that ended more than 30 days ago (New York date).
+        events = events.filter(date__gte=earliest_public_date(now))
     else:
-        now = timezone.now().astimezone(NYC_TZ)
-        events = events.filter(Q(date__gt=now.date()) | Q(date=now.date(), time__gte=now.time()))
         if user is None or not user.is_authenticated:
-            return events.none()
+            return Event.objects.none()
+        # My Events also keep cancelled and removed games that hadn't started (#76). They're in no phase,
+        # so they show alongside upcoming games and never with only live or ended ones.
+        if EventPhase.UPCOMING in phases:
+            membership |= ~Q(status=EventStatus.SCHEDULED) & phase_q(EventPhase.UPCOMING, now)
+        events = Event.objects.filter(membership)
         attending = RSVP.objects.filter(event_id=OuterRef('pk'), user=user, status=RSVPStatus.ACTIVE)
         if filters['scope'] == 'hosting':
             events = events.filter(organizer=user)
@@ -262,10 +321,25 @@ def matching_events(filters, user=None):
             events = events.filter(date__lte=filters['date_to'])
     if filters.get('skill'):
         events = events.filter(skill_level__in=[filters['skill'], SkillLevel.ALL])
-    return events.order_by('date', 'time', 'pk')
+    return events.order_by(*phase_ordering(now))
 
 
-def displayed_parks(filters, user=None):
+def park_event_count(events):
+    """Count a filtered event queryset per outer park without fetching event rows."""
+    counts = events.order_by().filter(park_id=OuterRef('pk')).values('park_id').annotate(total=Count('pk'))
+    return Coalesce(Subquery(counts.values('total'), output_field=IntegerField()), Value(0))
+
+
+def with_park_phase_counts(parks, filters, user=None):
+    """Panel totals ignore only phase selection; all other Explore rules still apply."""
+    events = matching_events({**filters, 'phase': list(EventPhase.values)}, user).filter(status=EventStatus.SCHEDULED)
+    now = timezone.now()
+    return parks.annotate(
+        **{f'{phase}_count': park_event_count(events.filter(phase_q(phase, now))) for phase in EventPhase.values}
+    )
+
+
+def displayed_parks(filters, user=None, *, include_live_count=False):
     events = matching_events(filters, user)
     parks = park_location_filters(Park.objects.filter(is_retired=False), filters)
     if filters.get('q'):
@@ -286,10 +360,11 @@ def displayed_parks(filters, user=None):
     parks = Park.objects.filter(is_retired=False).filter(
         Q(pk__in=parks.values('pk')) | Q(pk__in=events.values('park_id'))
     )
-    counts = events.order_by().values('park_id').annotate(total=Count('pk')).values('total')
-    parks = parks.annotate(
-        event_count=Coalesce(Subquery(counts.filter(park_id=OuterRef('pk')), output_field=IntegerField()), Value(0))
-    )
+    parks = parks.annotate(event_count=park_event_count(events))
+    if include_live_count:
+        parks = parks.annotate(
+            live_count=park_event_count(events.filter(status=EventStatus.SCHEDULED).filter(phase_q(EventPhase.LIVE)))
+        )
     if filters.get('events_only'):
         parks = parks.filter(event_count__gt=0)
     return parks.order_by('-event_count', 'name', 'pk')

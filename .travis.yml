@@ -32,7 +32,7 @@ script:
   - coverage run manage.py test
   - coverage run --append -m unittest discover -s infra -p 'test_*.py'
   - coverage report --fail-under=85
-  - node --test events/js/explore.test.cjs events/js/lookahead-select.test.cjs
+  - node --test events/js/explore.test.cjs events/js/lookahead-select.test.cjs events/js/event-discussion.test.cjs
   - find .platform/hooks .platform/confighooks -name '*.sh' -exec bash -n {} +
 
 # Needs COVERALLS_REPO_TOKEN set in the Travis repository settings (never commit it).

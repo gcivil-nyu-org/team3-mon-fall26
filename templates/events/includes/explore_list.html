@@ -1,0 +1,47 @@
+{% load explore_tags %}{# Explore's list tabs, cards and pagination; #123 swaps these in after each results update. #}
+    <nav class="explore-tabs" aria-label="List results">
+      <a href="{% explore_url view='list' tab='events' %}" {% if filters.tab == 'events' %}aria-current="page"{% endif %}>Events <span>{{ event_total }}</span></a>
+      <a href="{% explore_url view='list' tab='parks' %}" {% if filters.tab == 'parks' %}aria-current="page"{% endif %}>Parks <span>{{ park_total }}</span></a>
+    </nav>
+    {% if filters.tab == 'parks' %}
+      <div class="explore-park-grid">
+      {% for park in parks %}
+        <article class="explore-park-card">
+          <p class="explore-card-kicker">{{ park.get_borough_display }} · {{ park.zipcode|default:'NYC' }}</p>
+          <h2>{{ park.name }}</h2>
+          <p class="explore-address">{{ park.address|default:park.location|default:'Address not specified' }}</p>
+          <p class="explore-amenities">{% for label in park.facility_labels|slice:':4' %}<span>{{ label }}</span>{% empty %}Facility details not specified{% endfor %}</p>
+          {% include "parks/includes/rating_badge.html" with park=park only %}
+          <footer><span class="explore-event-count">{{ park.event_count }} matching event{{ park.event_count|pluralize }}</span>
+            <a class="explore-quick-view" href="{% explore_panel_url park.pk %}" data-park-preview-url="{% url 'explore_park_preview' park.pk %}">Quick view <span aria-hidden="true">↗</span></a>
+            {% if park.details_url %}<a href="{{ park.details_url }}">Park details</a>{% endif %}
+          </footer>
+        </article>
+      {% empty %}
+        {% include "events/includes/empty_state.html" with state=empty_state %}
+      {% endfor %}
+      </div>
+    {% else %}
+      <ul class="discover-list explore-event-list">
+      {% for event in events %}
+        <li class="discover-item{% with phase=event.phase %}{% if phase %} discover-item--{{ phase }}{% endif %}{% endwith %}{% if event.unlinked %} discover-item--static{% endif %}">{% if event.unlinked %}<div class="discover-link">{% else %}<a class="discover-link" href="{{ event.get_absolute_url }}">{% endif %}
+          <span class="discover-date" aria-hidden="true"><span class="discover-date-dow">{{ event.date|date:'D' }}</span><span class="discover-date-day">{{ event.date|date:'j' }}</span><span class="discover-date-mon">{{ event.date|date:'M' }}</span></span>
+          <span class="discover-body">{% include "events/includes/event_badges.html" %}
+            <span class="discover-name">{{ event.display_title }}</span>
+            <span class="discover-meta"><span>{{ event.date|date:'D, M j' }} · {{ event.time_range }}</span><span>{{ event.park.name }} · {{ event.park.get_borough_display }}</span></span>
+            {% if event.meeting_spot %}<span class="discover-meta">Meet at {{ event.meeting_spot }}</span>{% endif %}
+          </span>
+          {% include "events/includes/event_spots.html" %}
+        {% if event.unlinked %}</div>{% else %}</a>{% endif %}</li>
+      {% empty %}
+        {% include "events/includes/empty_state.html" with state=empty_state tag="li" %}
+      {% endfor %}
+      </ul>
+    {% endif %}
+    {% if is_paginated %}
+    <nav class="discover-pages" aria-label="Pages">
+      {% if page_obj.has_previous %}<a class="btn btn--ghost" href="{% explore_url page=page_obj.previous_page_number %}">Previous</a>{% endif %}
+      <span>Page {{ page_obj.number }} of {{ paginator.num_pages }}</span>
+      {% if page_obj.has_next %}<a class="btn btn--ghost" href="{% explore_url page=page_obj.next_page_number %}">Next</a>{% endif %}
+    </nav>
+    {% endif %}

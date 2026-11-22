@@ -1,6 +1,6 @@
 from django import template
 
-from events.hub import explore_results_url
+from events.hub import explore_results_url, panel_param
 
 register = template.Library()
 
@@ -15,6 +15,16 @@ def explore_url(context, **changes):
         params.pop(name, None)
         if value is not None:
             params[name] = value
+    return '?' + params.urlencode()
+
+
+@register.simple_tag(takes_context=True)
+def explore_panel_url(context, park_id):
+    params = context['explore_params'].copy()
+    params['panel'] = panel_param(park_id)
+    page = context['page_obj'].number
+    if page > 1:
+        params['page'] = str(page)
     return '?' + params.urlencode()
 
 

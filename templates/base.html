@@ -34,12 +34,13 @@
               </span>
               <span class="account-menu-text">
                 <span class="account-menu-name">{{ nav_name }}</span>
-                <span class="account-menu-role">{% if user.is_staff %}Admin{% else %}Member{% endif %}</span>
+                <span class="account-menu-role">{% if is_administrator %}Admin{% else %}Member{% endif %}</span>
               </span>
             </summary>
             <div class="account-menu-panel">
               <a class="account-menu-item account-menu-item--profile" href="{{ profile_url }}">Profile</a>
               {% if event_list_url %}<a class="account-menu-item" href="{{ event_list_url }}?scope=mine">My Events</a>{% endif %}
+              {% if is_administrator %}<a class="account-menu-item" href="{% url 'admin:index' %}">Admin dashboard</a>{% endif %}
               <hr class="account-menu-divider">
               <form method="post" action="{{ logout_url|default:'/logout/' }}">
                 {% csrf_token %}
@@ -58,7 +59,8 @@
 
   {% block main %}
     <main class="site-main">
-      {% include "includes/messages.html" %}
+      {# #122: pages that send actions back to a section show those messages there instead. #}
+      {% block messages %}{% include "includes/messages.html" %}{% endblock %}
       {% block content %}{% endblock %}
     </main>
   {% endblock %}

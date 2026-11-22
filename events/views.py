@@ -4,18 +4,21 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Prefetch, Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
-from django.views.generic import CreateView, DetailView, ListView, View
+from django.views.generic import CreateView, DetailView, ListView, UpdateView, View
 
 from parks.models import Facility, Park
-from parks.views import facility_groups, with_availability
+from parks.views import facility_groups
 
-from .forms import EventCreateForm
-from .hub import remember_explore
-from .models import Event, EventStatus, RSVP, RSVPStatus
+from .forms import EventCreateForm, EventUpdateForm
+from .hosting import HostPlayingError, host_playing_error, set_host_playing
+from .hub import panel_param, positive_url_number, remember_explore, split_panel
+from .models import Event, EventPhase, EventStatus, MESSAGE_MAX_LENGTH, Message, RSVP, RSVPStatus
 from .explore import (
     configure_filter_form,
     displayed_parks,
@@ -24,18 +27,53 @@ from .explore import (
     filter_pills,
     matching_events,
     parse_filters,
+    selected_phases,
+    with_park_phase_counts,
 )
 
+# #122: actions on the event page return to the section they came from, with their message there.
+ATTENDANCE_ANCHOR = '#event-attendance-title'
+DISCUSSION_ANCHOR = '#event-discussion-title'
+ATTENDANCE_TAG = 'attendance'
+DISCUSSION_TAG = 'discussion'
 
-def filter_events(params, user=None):
-    """Compatibility entry point; every Explore surface uses the shared engine."""
-    _, filters = parse_filters(params)
-    return matching_events(filters, user).select_related('park', 'organizer'), filters
+
+def attendance_url(event):
+    return event.get_absolute_url() + ATTENDANCE_ANCHOR
 
 
 def personal_scope_redirect(request, filters):
     if filters['scope'] != 'all' and not request.user.is_authenticated:
         return redirect_to_login(request.get_full_path())
+
+
+def with_viewer_attending(events, user):
+    """Annotate `viewer_attending` (the viewer has an active RSVP) for the Explore card badges."""
+    if not user.is_authenticated:
+        return events
+    return events.annotate(
+        viewer_attending=Exists(RSVP.objects.filter(event_id=OuterRef('pk'), user=user, status=RSVPStatus.ACTIVE))
+    )
+
+
+def event_cards(events, user, filters):
+    """Explore event cards: `viewer_hosting` for the Host badge (US-4.7), and `unlinked` for ended games.
+
+    US-4.8 (#117): in public Explore an ended game is a greyed-out row, not a link. My Events keep the link
+    so players can still open games they played.
+    """
+    events = list(events)
+    for event in events:
+        event.viewer_hosting = user.is_authenticated and event.organizer_id == user.pk
+        event.unlinked = filters['scope'] == 'all' and event.phase == EventPhase.ENDED
+    return events
+
+
+def can_manage_own_messages(event, user):
+    return user.is_authenticated and (
+        event.discussion_open
+        or (event.status == EventStatus.SCHEDULED and event.has_ended and event.can_be_managed_by(user))
+    )
 
 
 CLEARABLE_FILTERS = (
@@ -48,6 +86,7 @@ CLEARABLE_FILTERS = (
     'date_from',
     'date_to',
     'skill',
+    'phase',
     'park',
     'events_only',
 )
@@ -74,10 +113,14 @@ def explore_empty_state(filters, event_total, park_total, has_park_data):
         if filters['events_only'] and filters['scope'] == 'all' and not event_total
         else 'no_matches'
     )
-    map_state = no_parks if not park_total else None
+    # US-4.7: an empty My Events points back to all events (the account menu link opens the map).
+    no_events = 'no_my_events' if filters['scope'] != 'all' else 'no_events'
+    map_state = None
+    if not park_total:
+        map_state = no_events if no_events == 'no_my_events' and not event_total else no_parks
     if filters['tab'] == 'parks':
         return (no_parks if not park_total else None), map_state
-    return ('no_events' if not event_total else None), map_state
+    return (no_events if not event_total else None), map_state
 
 
 def park_details_url(park):
@@ -85,35 +128,37 @@ def park_details_url(park):
 
 
 class EventListView(ListView):
-    """Explore Events: one filter state, a map and two paginated list tabs."""
+    """Explore Events: one filter state, a map and two paginated list tabs.
+
+    With `partial=True` (the `explore_results` URL) the same view returns the changed pieces as JSON, so
+    filters, tabs and pages update without a reload (#123). It still saves the state for Back to results.
+    """
 
     model = Event
     template_name = 'events/event_list.html'
     context_object_name = 'events'
     paginate_by = 20
+    partial = False
 
     def dispatch(self, request, *args, **kwargs):
-        self.filter_form, self.filters = parse_filters(request.GET)
+        params, self.panel_id, self.legacy_panel = split_panel(request.GET)
+        self.filter_form, self.filters = parse_filters(params)
         redirect = personal_scope_redirect(request, self.filters)
         return redirect or super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
         if self.filters['tab'] == 'parks':
-            return displayed_parks(self.filters, self.request.user).prefetch_related(
-                Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active'))
+            return (
+                displayed_parks(self.filters, self.request.user)
+                .with_review_summary()
+                .prefetch_related(Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active')))
             )
-        return (
-            matching_events(self.filters, self.request.user)
-            .with_confirmed_players()
-            .select_related('park', 'organizer')
-        )
+        events = matching_events(self.filters, self.request.user).with_confirmed_players()
+        return with_viewer_attending(events, self.request.user).select_related('park', 'organizer')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         params = filter_params(self.filters)
-        panel = bool(self.filters['park'] and self.request.GET.get('panel') == '1')
-        if panel:
-            params['panel'] = '1'
         configure_filter_form(self.filter_form, self.filters)
         if self.filters['tab'] == 'parks':
             context['parks'] = context['object_list']
@@ -121,6 +166,8 @@ class EventListView(ListView):
             for park in context['parks']:
                 park.facility_labels = facility_labels(park)
                 park.details_url = park_details_url(park)
+        else:
+            context['events'] = event_cards(context['object_list'], self.request.user, self.filters)
         context.update(
             filters=self.filters,
             filter_form=self.filter_form,
@@ -140,17 +187,62 @@ class EventListView(ListView):
             map_empty_state=map_state,
             clear_filters_url=clear_filters_url(self.filters),
         )
-        if panel:
+        selected = None
+        page = context['page_obj'].number
+        if self.panel_id:
             selected = (
-                displayed_parks(self.filters, self.request.user)
+                with_park_phase_counts(
+                    displayed_parks(self.filters, self.request.user), self.filters, self.request.user
+                )
+                .filter(pk=self.panel_id)
+                .with_review_summary()
                 .prefetch_related(Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active')))
                 .first()
             )
             if selected:
-                context.update(park_preview_context(selected, self.filters, self.request.user))
+                context.update(park_preview_context(selected, self.filters, self.request.user, page=page))
                 context['selected_park'] = selected
-        remember_explore(self.request, self.filters, context['page_obj'].number, panel=panel)
+                if self.legacy_panel:
+                    context['focus_park'] = selected.pk
+        remember_explore(self.request, self.filters, page, panel_id=selected.pk if selected else None)
         return context
+
+    def render_to_response(self, context, **response_kwargs):
+        if not self.partial:
+            return super().render_to_response(context, **response_kwargs)
+        return JsonResponse(explore_results_payload(self.request, context))
+
+
+def explore_results_payload(request, context):
+    """The pieces of Explore that change with the filters, tab or page, for a swap without a reload (#123).
+
+    `url` is the canonical address for the browser's history. Without park data there's no list or map
+    to update, so the page reloads instead.
+    """
+    if not context['has_park_data']:
+        return {'reload': True}
+    params = context['explore_params'].copy()
+    page = context['page_obj'].number
+    if page > 1:
+        params['page'] = str(page)
+    selected = context.get('selected_park')
+    if selected:
+        params['panel'] = panel_param(selected.pk)
+
+    def render(template, **extra):
+        return render_to_string(template, {**context, **extra}, request=request)
+
+    map_state = context['map_empty_state']
+    return {
+        'url': reverse('event_list') + '?' + params.urlencode(),
+        'filters_html': render('events/includes/explore_filter_fields.html'),
+        'counts_html': render('events/includes/explore_counts.html'),
+        'list_html': render('events/includes/explore_list.html'),
+        'map_empty_html': render('events/includes/empty_state.html', state=map_state, map=True) if map_state else '',
+        'map_url': context['map_url'],
+        'panel_id': str(selected.pk) if selected else '',
+        'panel_html': render('events/includes/park_preview.html', park=selected) if selected else '',
+    }
 
 
 def serialize_event(event):
@@ -164,7 +256,9 @@ def serialize_event(event):
         'skill_level_label': event.get_skill_level_display(),
         'date': event.date.isoformat(),
         'time': event.time.strftime('%H:%M'),
+        'end_time': event.effective_end_time.strftime('%H:%M'),
         'starts_at': event.starts_at.isoformat(),
+        'ends_at': event.ends_at.isoformat(),
         'park': {
             'id': event.park_id,
             'name': event.park.name,
@@ -185,7 +279,9 @@ def upcoming_events_api(request):
     redirect = personal_scope_redirect(request, filters)
     if redirect:
         return redirect
-    events, _ = filter_events(request.GET, request.user)
+    # US-4.8 (#117): the feed lists upcoming games only, whatever ?phase= says.
+    filters['phase'] = [EventPhase.UPCOMING]
+    events = matching_events(filters, request.user).select_related('park', 'organizer')
     results = [serialize_event(event) for event in events[:200]]
     return JsonResponse({'count': len(results), 'results': results})
 
@@ -196,7 +292,9 @@ def event_map_api(request):
     redirect = personal_scope_redirect(request, filters)
     if redirect:
         return redirect
-    parks = displayed_parks(filters, request.user).exclude(latitude=None).exclude(longitude=None)
+    parks = (
+        displayed_parks(filters, request.user, include_live_count=True).exclude(latitude=None).exclude(longitude=None)
+    )
     results = [
         {
             'id': p.pk,
@@ -205,6 +303,7 @@ def event_map_api(request):
             'lat': float(p.latitude),
             'lng': float(p.longitude),
             'event_count': p.event_count,
+            'live_count': p.live_count,
             'preview_url': reverse('explore_park_preview', kwargs={'pk': p.pk}),
         }
         for p in parks
@@ -225,31 +324,54 @@ def explore_park_preview(request, pk):
     if redirect:
         return redirect
     park = get_object_or_404(
-        displayed_parks(filters, request.user).prefetch_related(
-            Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active'))
-        ),
+        with_park_phase_counts(displayed_parks(filters, request.user), filters, request.user)
+        .with_review_summary()
+        .prefetch_related(Prefetch('facilities', queryset=Facility.objects.filter(feature_status='Active'))),
         pk=pk,
     )
-    return render(request, 'events/includes/park_preview.html', park_preview_context(park, filters, request.user))
+    page = positive_url_number(request.GET.get('page', '')) or 1
+    return render(request, 'events/includes/park_preview.html', park_preview_context(park, filters, request.user, page))
 
 
-def park_preview_context(park, filters, user):
+@require_POST
+def explore_state(request):
+    """Persist validated Explore state after a browser history change."""
+    params, panel_id, _ = split_panel(request.POST)
+    _, filters = parse_filters(params)
+    if filters['scope'] != 'all' and not request.user.is_authenticated:
+        return HttpResponse(status=403)
+    if panel_id and not displayed_parks(filters, request.user).filter(pk=panel_id).exists():
+        return HttpResponse(status=404)
+    page = positive_url_number(params.get('page', '')) or 1
+    remember_explore(request, filters, page, panel_id=panel_id)
+    return HttpResponse(status=204)
+
+
+def park_preview_context(park, filters, user, page=1):
     params = filter_params(filters)
     params['park'] = str(park.pk)
     params['view'] = 'list'
     params['tab'] = 'events'
+    # US-4.9 (#118): when Ended isn't selected, fetch this park's ended games in the same query so the
+    # panel can say how many are hidden, without another query.
+    phases = selected_phases(filters)
+    count_hidden = EventPhase.ENDED not in phases
+    query_filters = {**filters, 'phase': [*phases, EventPhase.ENDED]} if count_hidden else filters
     events = (
-        matching_events(filters, user).filter(park=park).with_confirmed_players().select_related('organizer__profile')
+        matching_events(query_filters, user)
+        .filter(park=park)
+        .with_confirmed_players()
+        .select_related('organizer__profile')
     )
-    if user.is_authenticated:
-        events = events.annotate(
-            viewer_attending=Exists(RSVP.objects.filter(event_id=OuterRef('pk'), user=user, status=RSVPStatus.ACTIVE))
-        )
-    park_events = with_availability(events)
-    for event in park_events:
-        event.viewer_hosting = user.is_authenticated and event.organizer_id == user.pk
+    cards = event_cards(with_viewer_attending(events, user), user, filters)
+    park_events = [event for event in cards if not (count_hidden and event.phase == EventPhase.ENDED)]
+    hidden_ended_total = len(cards) - len(park_events)
+    show_ended_params = filter_params(filters)
+    show_ended_params.setlist('phase', [str(phase) for phase in (*phases, EventPhase.ENDED)])
+    show_ended_params['panel'] = panel_param(park.pk)
     close_params = filter_params(filters)
-    close_params.pop('park', None)
+    if page > 1:
+        close_params['page'] = str(page)
     return {
         'park': park,
         'facility_groups': facility_groups(park.facilities.all()),
@@ -257,6 +379,9 @@ def park_preview_context(park, filters, user):
         'events_url': reverse('event_list') + '?' + params.urlencode(),
         'park_events': park_events,
         'panel_event_total': len(park_events),
+        'phase_counts': {phase: getattr(park, f'{phase}_count') for phase in EventPhase.values},
+        'hidden_ended_total': hidden_ended_total,
+        'show_ended_url': reverse('event_list') + '?' + show_ended_params.urlencode(),
         'in_park_panel': True,
         'organize_url': reverse('event_create') + '?park=' + str(park.pk),
         'close_panel_url': reverse('event_list') + '?' + close_params.urlencode(),
@@ -267,6 +392,17 @@ class EventCreateView(LoginRequiredMixin, CreateView):
     model = Event
     form_class = EventCreateForm
     template_name = 'events/event_form.html'
+
+    def get_initial(self):
+        """Pre-select the park when starting from a park page or panel (US-3.9). Invalid `?park=` values are ignored."""
+        initial = super().get_initial()
+        park = self.request.GET.get('park', '')
+        # isdigit() alone also accepts characters such as '²' that int() rejects, so allow only ASCII 0-9.
+        # The length check keeps oversized numbers away from the database's integer range.
+        is_park_id = park.isascii() and park.isdigit() and len(park) <= 9
+        if is_park_id and Park.objects.filter(pk=int(park), is_retired=False).exists():
+            initial['park'] = int(park)
+        return initial
 
     def form_valid(self, form):
         form.instance.organizer = self.request.user
@@ -298,16 +434,156 @@ class EventCancelView(OrganizerOrAdminRequiredMixin, View):
         with transaction.atomic():
             event = get_object_or_404(Event.objects.select_for_update(), pk=pk)
             if event.status == EventStatus.CANCELLED:
-                messages.error(request, 'This event has already been cancelled.')
+                messages.error(request, 'This event has already been cancelled.', extra_tags=ATTENDANCE_TAG)
             elif event.status == EventStatus.REMOVED:
-                messages.error(request, 'This event has been removed.')
-            elif event.is_past:
-                messages.error(request, 'This event has already started, so it can no longer be cancelled.')
+                messages.error(request, 'This event has been removed.', extra_tags=ATTENDANCE_TAG)
+            elif event.has_started:
+                messages.error(
+                    request,
+                    'This event has already started, so it can no longer be cancelled.',
+                    extra_tags=ATTENDANCE_TAG,
+                )
             else:
                 event.status = EventStatus.CANCELLED
                 event.save(update_fields=['status', 'updated_at'])
-                messages.success(request, 'Your event has been cancelled.')
+                messages.success(request, 'Your event has been cancelled.', extra_tags=ATTENDANCE_TAG)
+        return redirect(attendance_url(event))
+
+
+def edit_block_reason(event):
+    """Why `event` can't be edited right now, or None (US-3.4 / #25)."""
+    if event.status == EventStatus.CANCELLED:
+        return 'This event has been cancelled, so it can no longer be edited.'
+    if event.status == EventStatus.REMOVED:
+        return 'This event has been removed, so it can no longer be edited.'
+    if event.has_started:
+        return 'This event has already started, so it can no longer be edited.'
+    return None
+
+
+def limit_below_confirmed_message(confirmed):
+    """US-3.5 (#26): the error when a new limit would drop someone who's already confirmed."""
+    noun = 'player' if confirmed == 1 else 'players'
+    return f'Participant limit cannot be lower than the {confirmed} currently confirmed {noun}.'
+
+
+class EventUpdateView(OrganizerOrAdminRequiredMixin, UpdateView):
+    """Edit an upcoming event (US-3.4 / #25), for its organizer or an administrator (#27).
+
+    The park stays locked. The limit and the host's "I'm playing" choice are checked under the event
+    row lock that Join takes (#31), so a new limit never drops a confirmed player (#26), even if
+    someone joins while the form is being saved.
+    """
+
+    model = Event
+    form_class = EventUpdateForm
+    template_name = 'events/event_form.html'
+
+    def handle_no_permission(self):
+        if not self.request.user.is_authenticated:
+            # Unlike the POST-only management URLs, the edit page can be shown again after login.
+            return redirect_to_login(self.request.get_full_path())
+        return super().handle_no_permission()
+
+    def refused(self, event):
+        reason = edit_block_reason(event)
+        if reason is None:
+            return None
+        messages.error(self.request, reason)
         return redirect(event.get_absolute_url())
+
+    def get(self, request, *args, **kwargs):
+        return self.refused(self.get_object()) or super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return self.refused(self.get_object()) or super().post(request, *args, **kwargs)
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        if self.request.user.pk != self.object.organizer_id:
+            # Only the organizer chooses whether they play (US-3.10); an administrator edits everything else.
+            del form.fields['host_is_playing']
+        return form
+
+    def get_context_data(self, **kwargs):
+        return super().get_context_data(is_edit=True, **kwargs)
+
+    def form_valid(self, form):
+        with transaction.atomic():
+            event = Event.objects.select_for_update().get(pk=self.object.pk)
+            refused = self.refused(event)
+            if refused:
+                return refused
+            playing = form.cleaned_data.get('host_is_playing', event.host_is_playing)
+            capacity = form.cleaned_data.get('capacity')
+            active_rsvps = event.rsvps.filter(status=RSVPStatus.ACTIVE).count()
+            error = host_playing_error(event, playing, capacity=capacity, active_rsvps=active_rsvps)
+            if error:
+                form.add_error('host_is_playing', error)
+                return self.form_invalid(form)
+            confirmed = active_rsvps + int(playing)
+            if capacity is not None and capacity < confirmed:
+                form.add_error('capacity', limit_below_confirmed_message(confirmed))
+                return self.form_invalid(form)
+            updated = form.save(commit=False)
+            # Save only the edited fields, so a cancellation saved meanwhile isn't overwritten.
+            updated.save(update_fields=[*form.fields, 'updated_at'])
+        messages.success(self.request, 'Your event has been updated.')
+        return redirect(updated.get_absolute_url())
+
+
+class EventRemoveParticipantView(OrganizerOrAdminRequiredMixin, View):
+    """Remove an active RSVP without deleting its history (#33)."""
+
+    def post(self, request, pk, rsvp_pk):
+        with transaction.atomic():
+            event = get_object_or_404(Event.objects.select_for_update(), pk=pk)
+            rsvp = get_object_or_404(RSVP.objects.select_for_update(), pk=rsvp_pk, event=event)
+            if event.status != EventStatus.SCHEDULED:
+                messages.error(
+                    request, 'Participants can only be removed from scheduled events.', extra_tags=ATTENDANCE_TAG
+                )
+            elif event.has_started:
+                messages.error(
+                    request,
+                    'This event has already started, so participants can no longer be removed.',
+                    extra_tags=ATTENDANCE_TAG,
+                )
+            elif rsvp.status != RSVPStatus.ACTIVE:
+                messages.error(
+                    request, 'This participant is no longer attending this event.', extra_tags=ATTENDANCE_TAG
+                )
+            else:
+                rsvp.status = RSVPStatus.REMOVED
+                rsvp.save(update_fields=['status', 'updated_at'])
+                messages.success(request, 'Participant removed from the event.', extra_tags=ATTENDANCE_TAG)
+        return redirect(attendance_url(event))
+
+
+class EventHostPlayingView(LoginRequiredMixin, View):
+    """The host's own "I'm playing in this game" switch on the event page (US-3.10 / #82).
+
+    Only the organizer chooses whether they play. Edit Event (#25) applies the same rule
+    (`host_playing_error()`) together with its limit check.
+    """
+
+    def post(self, request, pk):
+        event = get_object_or_404(Event, pk=pk)
+        if request.user != event.organizer:
+            raise PermissionDenied
+        playing = request.POST.get('playing') == '1'
+        try:
+            _, changed = set_host_playing(event.pk, playing)
+        except HostPlayingError as error:
+            messages.error(request, str(error), extra_tags=ATTENDANCE_TAG)
+        else:
+            if changed:
+                messages.success(
+                    request,
+                    "You're playing in this game." if playing else "You're no longer playing in this game.",
+                    extra_tags=ATTENDANCE_TAG,
+                )
+        return redirect(attendance_url(event))
 
 
 class EventDetailView(DetailView):
@@ -316,12 +592,20 @@ class EventDetailView(DetailView):
     context_object_name = 'event'
 
     def get_queryset(self):
-        return Event.objects.with_confirmed_players().select_related('park', 'organizer')
+        return Event.objects.with_confirmed_players().select_related('park', 'organizer__profile')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         event = self.object
-        active_rsvps = event.rsvps.filter(status=RSVPStatus.ACTIVE).select_related('user')
+        active_rsvps = event.rsvps.filter(status=RSVPStatus.ACTIVE).select_related('user__profile')
+        discussion_messages = Message.objects.filter(event=event).select_related('author__profile')
+        latest_discussion_message_id = discussion_messages.order_by('-pk').values_list('pk', flat=True).first() or 0
+        announcement_messages = discussion_messages.filter(author=event.organizer, is_announcement=True).order_by(
+            '-created_at', '-pk'
+        )
+        regular_messages = discussion_messages.exclude(author=event.organizer, is_announcement=True).order_by(
+            'created_at', 'pk'
+        )
         confirmed_players = event.confirmed_players
         user_rsvp = None
         if self.request.user.is_authenticated and self.request.user != event.organizer:
@@ -332,12 +616,14 @@ class EventDetailView(DetailView):
             event_block_reason = 'This event has been cancelled.'
         elif event.status == EventStatus.REMOVED:
             event_block_reason = 'This event has been removed.'
-        elif event.is_past:
+        elif event.has_ended:
+            event_block_reason = 'This event has ended.'
+        elif event.has_started:
             event_block_reason = 'This event has already started.'
 
         reason = event_block_reason
         if reason is None and user_rsvp and user_rsvp.status == RSVPStatus.REMOVED:
-            reason = 'Your RSVP was removed by the organizer.'
+            reason = 'Your RSVP was removed by the organizer. You can\'t rejoin this event.'
         elif reason is None and event.capacity is not None and confirmed_players >= event.capacity:
             reason = 'This event is full.'
 
@@ -345,9 +631,21 @@ class EventDetailView(DetailView):
         context.update(
             can_manage=can_manage,
             can_cancel_event=can_manage and event_block_reason is None,
+            can_edit_event=can_manage and event_block_reason is None,
+            can_announce=self.request.user.is_authenticated and self.request.user == event.organizer,
             active_rsvps=active_rsvps,
+            announcement_messages=announcement_messages,
+            regular_messages=regular_messages,
+            has_discussion_messages=announcement_messages.exists() or regular_messages.exists(),
+            latest_discussion_message_id=latest_discussion_message_id,
+            can_post_message=event.discussion_open,
+            can_manage_own_messages=can_manage_own_messages(event, self.request.user),
+            can_moderate_messages=event.can_be_managed_by(self.request.user),
+            can_delete_own_messages=self.request.user.is_authenticated and event.discussion_open,
+            message_max_length=MESSAGE_MAX_LENGTH,
             confirmed_players=confirmed_players,
-            spots_remaining=(None if event.capacity is None else max(event.capacity - confirmed_players, 0)),
+            spots_remaining=event.spots_remaining,
+            ended=event.phase == EventPhase.ENDED,
             user_rsvp=user_rsvp,
             rsvp_block_reason=reason,
             event_block_reason=event_block_reason,
@@ -365,41 +663,233 @@ class EventDetailView(DetailView):
 
 
 @require_POST
+def post_event_message(request, pk):
+    event_url = reverse('event_detail', kwargs={'pk': pk})
+    wants_json = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+    if not request.user.is_authenticated:
+        if wants_json:
+            return JsonResponse({'error': 'Please log in to join the discussion.'}, status=401)
+        return redirect_to_login(event_url)
+
+    with transaction.atomic():
+        event = get_object_or_404(Event.objects.select_for_update(), pk=pk)
+        is_announcement = request.POST.get('is_announcement') == 'true'
+        if is_announcement and request.user != event.organizer:
+            raise PermissionDenied
+
+        if not event.discussion_open:
+            error = 'Discussion is closed for this event.'
+            if wants_json:
+                return JsonResponse({'error': error}, status=409)
+            messages.error(request, error, extra_tags=DISCUSSION_TAG)
+        else:
+            body = request.POST.get('body', '').strip()
+            if not body:
+                error = 'Message cannot be blank.'
+                if wants_json:
+                    return JsonResponse({'error': error}, status=400)
+                messages.error(request, error, extra_tags=DISCUSSION_TAG)
+            elif len(body) > MESSAGE_MAX_LENGTH:
+                error = f'Message cannot exceed {MESSAGE_MAX_LENGTH} characters.'
+                if wants_json:
+                    return JsonResponse({'error': error}, status=400)
+                messages.error(request, error, extra_tags=DISCUSSION_TAG)
+            else:
+                message = Message.objects.create(
+                    event=event,
+                    author=request.user,
+                    body=body,
+                    is_announcement=is_announcement,
+                )
+                if wants_json:
+                    message = Message.objects.select_related('author__profile').get(pk=message.pk)
+                    return JsonResponse(
+                        {
+                            'html': render_to_string(
+                                'events/includes/event_message.html',
+                                {
+                                    'message': message,
+                                    'is_announcement': is_announcement,
+                                    'event': event,
+                                    'can_manage_own_messages': can_manage_own_messages(event, request.user),
+                                    'can_moderate_messages': event.can_be_managed_by(request.user),
+                                    'can_delete_own_messages': request.user.is_authenticated and event.discussion_open,
+                                    'message_max_length': MESSAGE_MAX_LENGTH,
+                                },
+                                request=request,
+                            ),
+                            'id': message.pk,
+                            'is_announcement': is_announcement,
+                        }
+                    )
+    return redirect(event_url + DISCUSSION_ANCHOR)
+
+
+def get_editable_message(request, event_pk, message_pk):
+    event = get_object_or_404(Event, pk=event_pk)
+    message = get_object_or_404(Message.objects.select_related('author__profile'), pk=message_pk, event=event)
+    if message.author_id != request.user.pk or not can_manage_own_messages(event, request.user):
+        raise PermissionDenied
+    return event, message
+
+
+def get_deletable_message(request, event_pk, message_pk):
+    event = get_object_or_404(Event, pk=event_pk)
+    message = get_object_or_404(Message.objects.select_related('author__profile'), pk=message_pk, event=event)
+    can_delete_as_author = message.author_id == request.user.pk and event.discussion_open
+    if not event.can_be_managed_by(request.user) and not can_delete_as_author:
+        raise PermissionDenied
+    return message
+
+
+@require_POST
+def edit_event_message(request, pk, message_pk):
+    event_url = reverse('event_detail', kwargs={'pk': pk})
+    wants_json = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+    if not request.user.is_authenticated:
+        return redirect_to_login(event_url)
+
+    event, message = get_editable_message(request, pk, message_pk)
+    body = request.POST.get('body', '').strip()
+    if not body:
+        error = 'Message cannot be blank.'
+        if wants_json:
+            return JsonResponse({'error': error}, status=400)
+        messages.error(request, error)
+    elif len(body) > MESSAGE_MAX_LENGTH:
+        error = f'Message cannot exceed {MESSAGE_MAX_LENGTH} characters.'
+        if wants_json:
+            return JsonResponse({'error': error}, status=400)
+        messages.error(request, error)
+    else:
+        message.body = body
+        message.edited_at = timezone.now()
+        message.save(update_fields=['body', 'edited_at'])
+        if wants_json:
+            is_announcement = message.author_id == event.organizer_id and message.is_announcement
+            return JsonResponse(
+                {
+                    'id': message.pk,
+                    'html': render_to_string(
+                        'events/includes/event_message.html',
+                        {
+                            'message': message,
+                            'event': event,
+                            'is_announcement': is_announcement,
+                            'can_manage_own_messages': can_manage_own_messages(event, request.user),
+                            'can_moderate_messages': event.can_be_managed_by(request.user),
+                            'can_delete_own_messages': request.user.is_authenticated and event.discussion_open,
+                            'message_max_length': MESSAGE_MAX_LENGTH,
+                        },
+                        request=request,
+                    ),
+                }
+            )
+    return redirect(event_url)
+
+
+@require_POST
+def delete_event_message(request, pk, message_pk):
+    event_url = reverse('event_detail', kwargs={'pk': pk})
+    wants_json = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+    if not request.user.is_authenticated:
+        return redirect_to_login(event_url)
+
+    message = get_deletable_message(request, pk, message_pk)
+    message_id = message.pk
+    message.delete()
+    if wants_json:
+        return JsonResponse({'deleted': True, 'id': message_id})
+    return redirect(event_url)
+
+
+@require_GET
+def event_discussion_updates(request, pk):
+    event = get_object_or_404(Event, pk=pk)
+    try:
+        after_id = max(int(request.GET.get('after', '0')), 0)
+    except ValueError:
+        return JsonResponse({'error': 'Invalid message cursor.'}, status=400)
+
+    if not event.discussion_open:
+        return JsonResponse({'messages': [], 'latest_id': after_id, 'discussion_open': False})
+
+    new_messages = (
+        Message.objects.filter(event=event, pk__gt=after_id).select_related('author__profile').order_by('pk')[:100]
+    )
+    results = []
+    latest_id = after_id
+    for message in new_messages:
+        is_announcement = message.author_id == event.organizer_id and message.is_announcement
+        results.append(
+            {
+                'id': message.pk,
+                'is_announcement': is_announcement,
+                'html': render_to_string(
+                    'events/includes/event_message.html',
+                    {
+                        'message': message,
+                        'event': event,
+                        'is_announcement': is_announcement,
+                        'can_manage_own_messages': can_manage_own_messages(event, request.user),
+                        'can_moderate_messages': event.can_be_managed_by(request.user),
+                        'can_delete_own_messages': request.user.is_authenticated and event.discussion_open,
+                        'message_max_length': MESSAGE_MAX_LENGTH,
+                    },
+                    request=request,
+                ),
+            }
+        )
+        latest_id = message.pk
+
+    return JsonResponse({'messages': results, 'latest_id': latest_id, 'discussion_open': True})
+
+
+def join_block_reason(event, rsvp):
+    """Why `rsvp`'s user can't join `event` right now, or None. Call under the event lock (#31)."""
+    if rsvp and rsvp.status == RSVPStatus.ACTIVE:
+        return "You're already attending."
+    if rsvp and rsvp.status == RSVPStatus.REMOVED:
+        return 'Your RSVP was removed by the organizer. You can\'t rejoin this event.'
+    if event.status == EventStatus.CANCELLED:
+        return 'This event has been cancelled.'
+    if event.status == EventStatus.REMOVED:
+        return 'This event has been removed.'
+    if event.has_started:
+        return 'This event has already started.'
+    if event.capacity is not None and event.count_confirmed_players() >= event.capacity:
+        return 'This event is full.'
+    return None
+
+
+@require_POST
 def event_rsvp(request, pk):
-    event = get_object_or_404(Event.objects.with_confirmed_players(), pk=pk)
+    event = get_object_or_404(Event, pk=pk)
     if not request.user.is_authenticated:
         return redirect_to_login(event.get_absolute_url())
 
-    detail_url = event.get_absolute_url()
     if request.user == event.organizer:
-        messages.error(request, 'Organizers cannot RSVP to their own event.')
-        return redirect(detail_url)
+        messages.error(request, 'Organizers cannot RSVP to their own event.', extra_tags=ATTENDANCE_TAG)
+        return redirect(attendance_url(event))
 
-    rsvp = RSVP.objects.filter(event=event, user=request.user).first()
-    if rsvp and rsvp.status == RSVPStatus.ACTIVE:
-        messages.error(request, "You're already attending.")
-        return redirect(detail_url)
-    if rsvp and rsvp.status == RSVPStatus.REMOVED:
-        messages.error(request, 'Your RSVP was removed by the organizer.')
-        return redirect(detail_url)
-
-    if event.status == EventStatus.CANCELLED:
-        messages.error(request, 'This event has been cancelled.')
-    elif event.status == EventStatus.REMOVED:
-        messages.error(request, 'This event has been removed.')
-    elif event.is_past:
-        messages.error(request, 'This event has already started.')
-    elif event.capacity is not None and event.confirmed_players >= event.capacity:
-        messages.error(request, 'This event is full.')
-    else:
-        if rsvp:
-            rsvp.status = RSVPStatus.ACTIVE
-            rsvp.save(update_fields=['status', 'updated_at'])
+    # US-4.3 (#31): lock the plain event row first (as EventCancelView does), so simultaneous joins,
+    # the host's "I'm playing" switch and a cancel run one at a time. Only then re-read the RSVP,
+    # re-check the event and count confirmed players.
+    with transaction.atomic():
+        event = Event.objects.select_for_update().get(pk=pk)
+        rsvp = RSVP.objects.filter(event=event, user=request.user).first()
+        reason = join_block_reason(event, rsvp)
+        if reason:
+            messages.error(request, reason, extra_tags=ATTENDANCE_TAG)
         else:
-            RSVP.objects.create(event=event, user=request.user)
-        messages.success(request, 'You are attending this event.')
+            if rsvp:
+                rsvp.status = RSVPStatus.ACTIVE
+                rsvp.save(update_fields=['status', 'updated_at'])
+            else:
+                RSVP.objects.create(event=event, user=request.user)
+            messages.success(request, 'You are attending this event.', extra_tags=ATTENDANCE_TAG)
 
-    return redirect(detail_url)
+    return redirect(attendance_url(event))
 
 
 @require_POST
@@ -408,22 +898,23 @@ def cancel_event_rsvp(request, pk):
     if not request.user.is_authenticated:
         return redirect_to_login(event.get_absolute_url())
 
-    detail_url = event.get_absolute_url()
     if request.user == event.organizer:
-        messages.error(request, 'Organizers cannot cancel an RSVP to their own event.')
-        return redirect(detail_url)
+        messages.error(request, 'Organizers cannot cancel an RSVP to their own event.', extra_tags=ATTENDANCE_TAG)
+        return redirect(attendance_url(event))
 
+    # US-4.3 (#31): same lock order as Join, then re-check the event as it is now.
     with transaction.atomic():
-        rsvp = RSVP.objects.select_for_update().filter(event=event, user=request.user).first()
+        event = Event.objects.select_for_update().get(pk=pk)
+        rsvp = RSVP.objects.filter(event=event, user=request.user).first()
         if event.status != EventStatus.SCHEDULED:
-            messages.error(request, 'RSVPs can only be cancelled for scheduled events.')
-        elif event.is_past:
-            messages.error(request, 'This event has already started.')
+            messages.error(request, 'RSVPs can only be cancelled for scheduled events.', extra_tags=ATTENDANCE_TAG)
+        elif event.has_started:
+            messages.error(request, 'This event has already started.', extra_tags=ATTENDANCE_TAG)
         elif rsvp is None or rsvp.status != RSVPStatus.ACTIVE:
-            messages.error(request, 'You are not attending this event.')
+            messages.error(request, 'You are not attending this event.', extra_tags=ATTENDANCE_TAG)
         else:
             rsvp.status = RSVPStatus.CANCELLED
             rsvp.save(update_fields=['status', 'updated_at'])
-            messages.success(request, 'Your RSVP has been cancelled.')
+            messages.success(request, 'Your RSVP has been cancelled.', extra_tags=ATTENDANCE_TAG)
 
-    return redirect(detail_url)
+    return redirect(attendance_url(event))

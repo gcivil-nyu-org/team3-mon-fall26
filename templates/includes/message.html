@@ -1,0 +1,1 @@
+<div class="alert alert--{{ message.level_tag|default:'info' }}" role="status"{% if 'auto-dismiss' in message.extra_tags %} data-auto-dismiss="2000"{% endif %}>{{ message }}</div>

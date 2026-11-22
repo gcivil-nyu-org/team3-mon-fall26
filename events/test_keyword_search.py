@@ -155,7 +155,7 @@ class KeywordSearchTests(TestCase):
     def test_no_results_shows_the_us_2_5_empty_states(self):
         events_tab = self.client.get(reverse('event_list'), {'view': 'list', 'tab': 'events', 'q': 'curling'})
         self.assertEqual(events_tab.context['empty_state'], 'no_events')
-        self.assertContains(events_tab, 'No upcoming events match your filters.')
+        self.assertContains(events_tab, 'No events match your filters.')
         parks_tab = self.client.get(reverse('event_list'), {'view': 'list', 'tab': 'parks', 'q': 'curling'})
         self.assertEqual(parks_tab.context['empty_state'], 'no_matches')
         map_view = self.client.get(reverse('event_list'), {'view': 'map', 'q': 'curling'})

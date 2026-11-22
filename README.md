@@ -56,10 +56,12 @@ The existing single-instance Elastic Beanstalk test environment uses
 [deployment instructions](docs/deployment.md) for environment variables,
 packaging, PostgreSQL backups and the single-instance test environment's limits.
 
-Pushes and merged PRs to the central repository's `develop` branch run tests
-and then automatically deploy to the existing AWS test environment. Other
-branches and fork PRs do not deploy. Track the run under GitHub **Actions →
-Test and deploy develop**. See the deployment guide for safeguards and recovery.
+Pushes and pull requests targeting `develop` or `main` run tests. Only tested
+pushes to `main` automatically deploy to the existing AWS environment. Continue
+feature development on `develop`, test it locally, and release it through a
+reviewed PR into `main`. No separate staging site is provisioned. The shared
+website URL and database stay the same. Track releases under GitHub Actions:
+**Test and deploy main**. See the deployment guide for safeguards and recovery.
 This project uses Django 5.2 LTS because Django 4.2 support ended in April 2026.
 
 The shared HTTPS URL is https://dgaeptdmd25z5.cloudfront.net/.

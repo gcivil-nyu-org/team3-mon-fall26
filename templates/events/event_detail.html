@@ -1,13 +1,18 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ event.display_title }} at {{ event.park.name }} · NYC Active{% endblock %}
+
+{# #122: Join, Leave, Cancel, Remove and "I'm playing" land on the roster, and posting without JavaScript on the #}
+{# discussion, so their messages show there. Everything else (e.g. Edit Event's save) stays at the top. #}
+{% block messages %}{% include "events/includes/section_messages.html" with section="page" %}{% endblock %}
 
 {% block content %}
 {% include "events/_hub_header.html" with active="explore" back=True %}
 <article class="event-card">
   <header class="event-card-header">
     <div class="event-badges">
-      <span class="event-badge event-badge--status">{{ event.get_status_display }}</span>
+      {% if event.status == 'scheduled' %}{% include "events/includes/phase_badge.html" %}{% else %}<span class="event-badge event-badge--status">{{ event.get_status_display }}</span>{% endif %}
       <span class="event-badge">{{ event.get_activity_display }}</span>
       <span class="event-badge">{{ event.get_skill_level_display }}</span>
     </div>
@@ -22,7 +27,8 @@
     <div class="event-meta-item">
       <dt>Park Location</dt>
       <dd>
-        <strong>{{ event.park.name }}</strong> ({{ event.park.get_borough_display }})
+        {# Retired parks have no page (404), so their name stays plain text. #}
+        <strong>{% if event.park.is_retired %}{{ event.park.name }}{% else %}<a href="{% url 'park_detail' event.park.pk %}">{{ event.park.name }}</a>{% endif %}</strong> ({{ event.park.get_borough_display }})
         {% if event.park.location or event.park.address %}
           <span class="event-meta-sub">{{ event.park.location|default:event.park.address }}</span>
         {% endif %}
@@ -36,7 +42,7 @@
 
     <div class="event-meta-item">
       <dt>Date &amp; Time</dt>
-      <dd>{{ event.date|date:"l, F j, Y" }} at {{ event.time|time:"g:i A" }}</dd>
+      <dd>{{ event.date|date:"l, F j, Y" }}<br>{{ event.time_range }}</dd>
     </div>
 
     <div class="event-meta-item">
@@ -62,27 +68,58 @@
   </section>
 
   <section class="event-attendance" aria-labelledby="event-attendance-title">
-    <h2 id="event-attendance-title">Going ({{ confirmed_players }})</h2>
-    {% if event.host_is_playing %}
-      <p>Organizer · @{{ event.organizer.username }}</p>
+    <div class="event-attendance-head">
+      {# US-4.8 (#117): once a game ends it lists who played, with no spots left or limit. #}
+      <h2 id="event-attendance-title">{% if ended %}Played{% else %}Going{% endif %} <span class="event-attendance-count">{{ confirmed_players }}</span></h2>
+      {% if ended %}
+        <span class="event-spots event-spots--muted">{{ confirmed_players }} played</span>
+      {% elif event.capacity %}
+        <span class="event-spots{% if not spots_remaining %} event-spots--muted{% endif %}">{% if spots_remaining %}{{ spots_remaining }} spot{{ spots_remaining|pluralize }} left{% else %}Full{% endif %}</span>
+      {% else %}
+        <span class="event-spots">Unlimited spots</span>
+      {% endif %}
+    </div>
+    {% include "events/includes/section_messages.html" with section="attendance" %}
+    {% if ended %}
+    {% elif event.capacity %}
+      <div class="event-spots-bar" aria-hidden="true"><span style="width: {% widthratio confirmed_players event.capacity 100 %}%"></span></div>
+      <p class="event-spots-caption">{{ confirmed_players }} / {{ event.capacity }} players</p>
+    {% else %}
+      <p class="event-spots-caption">{{ confirmed_players }} player{{ confirmed_players|pluralize }}</p>
     {% endif %}
-    <ul>
+    <ul class="event-roster">
+      {# The host is always listed; only "Playing" takes a spot (US-3.10 / #82). #}
+      {% if event.host_is_playing and ended %}
+        {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host · Played" %}
+      {% elif event.host_is_playing %}
+        {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host · Playing" %}
+      {% elif ended %}
+        {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host · Didn't play" %}
+      {% else %}
+        {% include "events/includes/roster_chip.html" with member=event.organizer tag="Host · Not playing" %}
+      {% endif %}
       {% for rsvp in active_rsvps %}
-        <li>@{{ rsvp.user.username }}{% if user.is_authenticated and rsvp.user_id == user.id %} <span>(you)</span>{% endif %}</li>
+        {% if user.is_authenticated and rsvp.user_id == user.id %}
+          {% include "events/includes/roster_chip.html" with member=rsvp.user tag="You" rsvp=rsvp %}
+        {% else %}
+          {% include "events/includes/roster_chip.html" with member=rsvp.user tag="" rsvp=rsvp %}
+        {% endif %}
       {% empty %}
-        {% if not event.host_is_playing %}<li>No one has RSVP’d yet.</li>{% endif %}
+        <li class="event-roster-empty">{% if ended %}No one else played.{% else %}No one has RSVP’d yet.{% endif %}</li>
       {% endfor %}
     </ul>
-    <p>
-      {% if event.capacity %}
-        {% if spots_remaining %}{{ spots_remaining }} spot{{ spots_remaining|pluralize }} remaining{% else %}Full{% endif %}
-      {% else %}
-        Unlimited spots
-      {% endif %}
-    </p>
 
+    <div class="event-attendance-actions">
     {% if user.is_authenticated and user == event.organizer %}
-      {# Organizers are counted as the host when playing, never as an RSVP. #}
+      {# Organizers never RSVP; they choose whether they play (US-3.10 / #82). Edit Event (#25) offers the same. #}
+      <form class="event-host-playing" method="post" action="{% url 'event_host_playing' event.pk %}">
+        {% csrf_token %}
+        <label class="event-host-playing-toggle">
+          <input type="checkbox" name="playing" value="1"{% if event.host_is_playing %} checked{% endif %}{% if event_block_reason %} disabled{% endif %}>
+          I'm playing in this game
+        </label>
+        {% if not event_block_reason %}<button class="btn btn--ghost" type="submit">Save</button>{% endif %}
+      </form>
     {% elif user_rsvp and user_rsvp.status == 'active' and not event_block_reason %}
       <form method="post" action="{% url 'event_rsvp_cancel' event.pk %}" onsubmit="return confirm('Cancel your RSVP?');">
         {% csrf_token %}
@@ -98,22 +135,30 @@
     {% elif user.is_authenticated and user != event.organizer and rsvp_block_reason %}
       <button class="btn btn--primary" type="button" disabled>Join event</button>
     {% elif not user.is_authenticated and not rsvp_block_reason %}
-      <a href="{% url 'login' %}?next={{ event.get_absolute_url|urlencode }}">Sign in to RSVP</a>
+      <a class="btn btn--primary" href="{% url 'login' %}?next={{ event.get_absolute_url|urlencode }}">Sign in to RSVP</a>
     {% endif %}
     {% if event_block_reason %}
-      <p role="status">{{ event_block_reason }}</p>
+      <p class="event-attendance-note" role="status">{{ event_block_reason }}</p>
     {% elif show_rsvp_block_reason %}
-      <p role="status">{{ rsvp_block_reason }}</p>
+      <p class="event-attendance-note" role="status">{{ rsvp_block_reason }}</p>
     {% endif %}
+    </div>
   </section>
 
-  {% if can_cancel_event %}
+  {% include "events/includes/event_discussion.html" %}
+
+  {% if can_edit_event or can_cancel_event %}
     <section class="event-manage" aria-label="Manage this event">
+      {% if can_edit_event %}<a class="btn btn--ghost" href="{% url 'event_edit' event.pk %}">Edit Event</a>{% endif %}
+      {% if can_cancel_event %}
       <form method="post" action="{% url 'event_cancel' event.pk %}" onsubmit="return confirm('Cancel this event? Players will see that it is off, and this cannot be undone.');">
         {% csrf_token %}
         <button class="btn btn--ghost" type="submit">Cancel Event</button>
       </form>
+      {% endif %}
     </section>
   {% endif %}
 </article>
 {% endblock %}
+
+{% block scripts %}{{ block.super }}<script src="{% static 'js/event-discussion.js' %}" defer></script>{% endblock %}

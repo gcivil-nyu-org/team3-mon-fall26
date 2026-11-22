@@ -62,22 +62,24 @@ class ParkUpcomingEventsTests(TestCase):
             'Sunday run',
             'Running',
             'Beginner / Casual',
-            'Sun, Oct 25 · 3:00 PM',
+            'Sun, Oct 25 · 3:00–5:00 PM',
             'Meet at Track entrance',
             'Hosted by @court-host',
             'Meeting spot not specified',
         ):
             self.assertContains(response, text)
 
-    def test_hides_started_cancelled_removed_and_other_parks_events(self):
+    def test_lists_live_then_upcoming_and_hides_ended_cancelled_removed_and_other_parks_events(self):
         kept = self.event()
-        self.event(title='Started an hour ago', date=self.now.date(), time=datetime.time(11))
+        # US-4.8 (#117): a game that's on right now stays listed, first, until it ends.
+        live = self.event(title='Started an hour ago', date=self.now.date(), time=datetime.time(11))
+        self.event(title='Over this morning', date=self.now.date(), time=datetime.time(9), end_time=datetime.time(10))
         self.event(title='Called off', status=EventStatus.CANCELLED)
         self.event(title='Taken down', status=EventStatus.REMOVED)
         self.event(title='Elsewhere', park=self.other_park)
         response = self.page()
-        self.assertEqual(response.context['park_events'], [kept])
-        for title in ('Started an hour ago', 'Called off', 'Taken down', 'Elsewhere'):
+        self.assertEqual(response.context['park_events'], [live, kept])
+        for title in ('Over this morning', 'Called off', 'Taken down', 'Elsewhere'):
             self.assertNotContains(response, title)
 
     def test_availability_counts_active_rsvps_and_a_playing_host(self):
@@ -89,14 +91,14 @@ class ParkUpcomingEventsTests(TestCase):
         self.event(title='Open run', capacity=None, time=datetime.time(17))
         response = self.page()
         self.assertEqual([event.spots_remaining for event in response.context['park_events']], [2, 0, None])
-        self.assertContains(response, '2 spots remaining')
+        self.assertContains(response, '2 spots left')
         self.assertContains(response, 'Full')
         self.assertContains(response, 'Unlimited spots')
 
     def test_no_upcoming_events_invites_organizing_here(self):
         self.event(park=self.other_park)
         response = self.page()
-        self.assertContains(response, 'No upcoming events here yet. Be the first to host one!')
+        self.assertContains(response, 'No games here yet. Be the first to host one!')
         # The header button plus the empty-state button.
         self.assertContains(response, f'href="{reverse("event_create")}?park={self.park.pk}"', count=2)
 

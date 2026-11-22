@@ -1,0 +1,2 @@
+{# US-4.8 (#117): Upcoming (green), LIVE (orange outline) or Ended (grey). The word always shows, not just the color. Cancelled and removed games have no phase. #}
+{% with phase=event.phase %}{% if phase %}<span class="event-badge event-badge--{{ phase }}">{{ phase.label }}</span>{% endif %}{% endwith %}

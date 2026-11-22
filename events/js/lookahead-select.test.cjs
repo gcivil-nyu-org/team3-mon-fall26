@@ -197,3 +197,73 @@ test('facility lookahead finds Track & Field and both soccer field types by word
   ui.input.fire('input');
   assert.deepEqual(optionTexts(ui.list), ['Non-Regulation Soccer']);
 });
+
+// US-3.9 (#81): the same widget, on a single select, is the Create Event park picker.
+const PARKS = [['', 'Select an NYC park'], ['1', 'Central Park (Manhattan)'], ['2', 'McCarren Park (Brooklyn)'],
+  ['3', 'McCarren Playground (Brooklyn)'], ['4', 'Prospect Park (Brooklyn)']];
+
+function single(values = PARKS, selected = '', dataset = {}) {
+  const doc = {createElement: (tag) => new Node(tag, doc), readyState: 'complete'};
+  const select = new Node('select', doc);
+  select.id = 'id_park';
+  select.multiple = false;
+  select.dataset = {lookahead: '', placeholder: 'Type a park name or borough', empty: 'No matching NYC parks', ...dataset};
+  select.options = values.map(([value, label]) => ({value, label, selected: value === selected}));
+  const form = new Node('form', doc);
+  form.append(select);
+  const changes = [];
+  select.addEventListener('change', () => changes.push(select.options.filter((o) => o.selected).map((o) => o.value)));
+  doc.querySelector = () => null;
+  doc.querySelectorAll = () => [];
+  const context = {
+    document: doc, module: {exports: {}},
+    Event: class { constructor(type, init) { this.type = type; this.bubbles = init?.bubbles; } },
+  };
+  vm.runInNewContext(source, context);
+  const ui = context.module.exports.enhance(select);
+  return {select, changes, ui};
+}
+
+test('park picker: typing "mcca" finds both McCarren parks and never the blank option', () => {
+  const {ui} = single();
+  assert.deepEqual(pillValues(ui.pills), [], 'the blank "Select an NYC park" option gets no pill');
+  ui.input.value = 'mcca';
+  ui.input.fire('input');
+  assert.deepEqual(optionTexts(ui.list), ['McCarren Park (Brooklyn)', 'McCarren Playground (Brooklyn)']);
+  ui.input.value = 'brook';
+  ui.input.fire('input');
+  assert.deepEqual(optionTexts(ui.list), ['McCarren Park (Brooklyn)', 'McCarren Playground (Brooklyn)',
+    'Prospect Park (Brooklyn)'], 'the borough in the label is searchable too');
+});
+
+test('park picker: a pre-filled park shows as a pill, and picking another replaces it', () => {
+  const {ui, select, changes} = single(PARKS, '2');
+  assert.deepEqual(pillValues(ui.pills), ['2']);
+  ui.input.value = 'pros';
+  ui.input.fire('input');
+  ui.input.fire('keydown', {key: 'Enter'});
+  assert.deepEqual(changes, [['4']], 'only one park is ever selected');
+  assert.deepEqual(pillValues(ui.pills), ['4']);
+  assert.equal(select.options.find((o) => o.value === '2').selected, false);
+});
+
+test('park picker: removing the pill falls back to the blank option', () => {
+  const {ui, select, changes} = single(PARKS, '2');
+  ui.pills.children[0].fire('click');
+  assert.deepEqual(changes, [['']]);
+  assert.equal(select.options[0].selected, true);
+  assert.deepEqual(pillValues(ui.pills), []);
+});
+
+test('data-max-results caps long lists and says to keep typing', () => {
+  const many = [['', 'Select an NYC park'], ...Array.from({length: 60}, (_, i) => [String(i + 1), `Park ${i + 1}`])];
+  const {ui} = single(many, '', {maxResults: '50', more: 'Keep typing to see more parks'});
+  ui.input.value = '';  // the fake DOM doesn't start inputs empty like a browser does
+  ui.input.fire('focus');
+  assert.equal(optionTexts(ui.list).length, 50);
+  assert.equal(ui.list.children.at(-1).textContent, 'Keep typing to see more parks');
+  ui.input.value = 'park 6';
+  ui.input.fire('input');
+  assert.deepEqual(optionTexts(ui.list), ['Park 6', 'Park 60']);
+  assert.notEqual(ui.list.children.at(-1).className, 'lookahead-more');
+});

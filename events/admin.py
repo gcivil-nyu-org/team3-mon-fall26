@@ -5,7 +5,18 @@ from .models import RSVP, Event
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ('title', 'activity', 'park', 'organizer', 'date', 'time', 'skill_level', 'capacity', 'status')
+    list_display = (
+        'title',
+        'activity',
+        'park',
+        'organizer',
+        'date',
+        'time',
+        'end_time',
+        'skill_level',
+        'capacity',
+        'status',
+    )
     list_filter = ('status', 'activity', 'skill_level', 'date')
     search_fields = ('title', 'description', 'meeting_spot', 'park__name', 'organizer__username')
     raw_id_fields = ('park', 'organizer')

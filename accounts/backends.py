@@ -1,5 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
+from django.contrib.auth.models import Permission
+from django.db.models import Q
+
+from .roles import ADMINISTRATORS_GROUP
 
 
 class EmailOrUsernameBackend(ModelBackend):
@@ -25,3 +29,14 @@ class EmailOrUsernameBackend(ModelBackend):
             password=password,
             **kwargs,
         )
+
+    def _get_group_permissions(self, user_obj):
+        """Group permissions, plus the Administrators group's for every staff account (#44).
+
+        Staff status alone makes someone an administrator, so nobody has to remember to add new
+        staff to the group, and revoking staff status takes the permissions away with it.
+        """
+        in_group = Q(group__user=user_obj)
+        if user_obj.is_staff:
+            in_group |= Q(group__name=ADMINISTRATORS_GROUP)
+        return Permission.objects.filter(in_group).distinct()
