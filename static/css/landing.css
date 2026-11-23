@@ -107,6 +107,18 @@ body {
   transition: background-color 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
+/* #50: the site banner floats with the nav, as a strip above it. */
+.lp-nav .site-banner {
+  max-width: 1160px;
+  margin: 0 auto 8px;
+  pointer-events: auto;
+  /* Lime, like the hero's buttons, so it stands out against the dark green hero. */
+  color: var(--green-900);
+  background: var(--lime-500);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px -12px rgba(3, 37, 23, 0.35);
+}
+
 .lp-nav.is-scrolled .lp-nav-inner {
   background: rgba(255, 255, 255, 0.96);
   border-color: var(--line);

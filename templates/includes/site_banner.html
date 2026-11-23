@@ -1,0 +1,6 @@
+{# US-7.7 (#50): the newest active banner, published in /admin/ under Site banners. #}
+{% with banner=site_banner %}{% if banner %}
+<div class="site-banner" role="region" aria-label="Site announcement">
+  <p class="site-banner-message">{{ banner.message }}</p>
+</div>
+{% endif %}{% endwith %}

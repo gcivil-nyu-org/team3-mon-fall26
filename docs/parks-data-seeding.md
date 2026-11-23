@@ -143,11 +143,17 @@ Sync complete. Parks: 2061 created, 0 updated, 0 skipped (admin/invalid). Facili
 2. **Preserving Administrator Edits (`admin_modified=True`):**
    - Any `Park` or `Facility` row with `admin_modified=True` is skipped during
      `sync_parks`.
-   - In `parks/admin.py`, editing an existing `Park` or `Facility` in Django
-     Admin automatically sets `obj.admin_modified = True` in `save_model()`.
-   - Future custom admin views (Epic 7, Issue #45) should likewise set
-     `admin_modified = True` whenever an administrator saves manual overrides to
-     a park or facility.
+   - In `parks/admin.py` (#45), saving a `Park` or `Facility` in Django Admin
+     sets `admin_modified = True` automatically (`save_model()`, and
+     `save_formset()` for facilities changed or added in the park's inline), so
+     there is no checkbox to forget. The flag and `gispropnum` are read-only.
+   - Facilities added by an administrator get a generated `system_id` of the
+     form `ADMIN-<gispropnum>-<n>`. NYC Open Data never uses that prefix and
+     `sync_parks` never deletes rows, so these facilities survive every sync.
+   - Sports are picked from `Facility.SPORT_FIELDS` and saved in the existing
+     comma-separated format; `primary_sport` (which groups facilities on the
+     park page) is picked from `Facility.PRIMARY_SPORT_LABELS`. Unknown values
+     are rejected with a validation error and nothing is saved.
 
 ---
 

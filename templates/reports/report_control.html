@@ -1,0 +1,6 @@
+{% if form %}
+<details class="report-control">
+  <summary aria-label="Report {{ kind }}">Report</summary>
+  {% include "reports/report_form.html" %}
+</details>
+{% endif %}

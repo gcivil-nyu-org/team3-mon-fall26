@@ -8,6 +8,7 @@ from .views import (
     EventListView,
     EventUpdateView,
     EventRemoveParticipantView,
+    EventRemoveView,
     upcoming_events_api,
     event_map_api,
     explore_park_preview,
@@ -39,6 +40,7 @@ urlpatterns = [
     ),
     path('events/<int:pk>/cancel/', EventCancelView.as_view(), name='event_cancel'),
     path('events/<int:pk>/playing/', EventHostPlayingView.as_view(), name='event_host_playing'),
+    path('events/<int:pk>/remove/', EventRemoveView.as_view(), name='event_remove'),
     path('events/<int:pk>/discussion/', post_event_message, name='event_message_post'),
     path('events/<int:pk>/discussion/updates/', event_discussion_updates, name='event_discussion_updates'),
     path(

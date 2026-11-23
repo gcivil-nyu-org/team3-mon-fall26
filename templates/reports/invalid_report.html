@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Report {{ kind }} · NYC Active{% endblock %}
+
+{% block content %}
+<section class="profile-settings">
+  <h1>Report {{ kind }}</h1>
+  {% include "reports/report_form.html" %}
+  <a class="btn btn--ghost" href="{{ return_url }}">Cancel</a>
+</section>
+{% endblock %}

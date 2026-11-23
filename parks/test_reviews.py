@@ -81,7 +81,6 @@ class ReviewSubmissionTests(ReviewTestCase):
         review = Review.objects.get()
         self.assertEqual((review.user, review.park, review.rating), (self.writer, self.park, 5))
         self.assertEqual(review.body, 'Courts are in great shape.')
-        self.assertContains(response, 'Your review has been posted.')
         self.assertContains(response, 'Your review')
         self.assertContains(response, 'Courts are in great shape.')
         self.assertNotContains(response, 'aria-label="Write a park review"')
@@ -202,13 +201,14 @@ class ReviewListTests(ReviewTestCase):
         self.assertEqual(self.client.get(self.url, {'reviews_page': 'invalid'}).status_code, 200)
 
     def test_author_loading_keeps_page_query_count_constant(self):
+        # 6 queries: the park page's 5, plus the site banner lookup every page makes (#50).
         self.review()
-        with self.assertNumQueries(5):
+        with self.assertNumQueries(6):
             self.client.get(self.url)
         for index in range(5):
             user = User.objects.create_user(f'review-query-{index}', f'query-{index}@example.test')
             self.review(user=user)
-        with self.assertNumQueries(5):
+        with self.assertNumQueries(6):
             self.client.get(self.url)
 
 

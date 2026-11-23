@@ -1,0 +1,4 @@
+{% extends "admin/base_site.html" %}
+
+{# US-7.8 (#51): a link to the metrics page next to "View site" on every admin page. #}
+{% block userlinks %}<a href="{% url 'admin_metrics' %}">Site metrics</a> / {{ block.super }}{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{# US-7.8 (#51): live counts for administrators. Every value is recounted on each page load. #}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p>Live counts as of {{ measured_at|date:"M j, Y, g:i a" }}. Refresh the page to update them.</p>
+  {% for section, rows in sections %}
+    <div class="module">
+      <table>
+        <caption>{{ section }}</caption>
+        <tbody>
+          {% for label, value in rows %}
+            <tr>
+              <th scope="row">{{ label }}</th>
+              <td>{{ value }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

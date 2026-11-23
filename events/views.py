@@ -12,12 +12,15 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from django.views.generic import CreateView, DetailView, ListView, UpdateView, View
 
+from accounts.audit import log_admin_action
+from accounts.roles import StaffRequiredMixin, is_administrator
 from parks.models import Facility, Park
 from parks.views import facility_groups
 
 from .forms import EventCreateForm, EventUpdateForm
 from .hosting import HostPlayingError, host_playing_error, set_host_playing
 from .hub import panel_param, positive_url_number, remember_explore, split_panel
+from .moderation import REMOVAL_REASON_MAX_LENGTH, remove_event
 from .models import Event, EventPhase, EventStatus, MESSAGE_MAX_LENGTH, Message, RSVP, RSVPStatus
 from .explore import (
     configure_filter_form,
@@ -364,7 +367,8 @@ def park_preview_context(park, filters, user, page=1):
         .select_related('organizer__profile')
     )
     cards = event_cards(with_viewer_attending(events, user), user, filters)
-    park_events = [event for event in cards if not (count_hidden and event.phase == EventPhase.ENDED)]
+    # By time, not `phase`: removed games (#48) are in no phase but still hide once they're over.
+    park_events = [event for event in cards if not (count_hidden and event.has_ended)]
     hidden_ended_total = len(cards) - len(park_events)
     show_ended_params = filter_params(filters)
     show_ended_params.setlist('phase', [str(phase) for phase in (*phases, EventPhase.ENDED)])
@@ -448,6 +452,25 @@ class EventCancelView(OrganizerOrAdminRequiredMixin, View):
                 event.save(update_fields=['status', 'updated_at'])
                 messages.success(request, 'Your event has been cancelled.', extra_tags=ATTENDANCE_TAG)
         return redirect(attendance_url(event))
+
+
+class EventRemoveView(StaffRequiredMixin, View):
+    """US-7.5 (#48): an administrator takes down an inappropriate or invalid event, at any point in its life."""
+
+    def handle_no_permission(self):
+        # This URL only takes POST, so after login go back to the event page instead.
+        return redirect_to_login(reverse('event_detail', kwargs={'pk': self.kwargs['pk']}))
+
+    def post(self, request, pk):
+        reason = request.POST.get('reason', '').strip()[:REMOVAL_REASON_MAX_LENGTH]
+        with transaction.atomic():
+            event = get_object_or_404(Event.objects.select_for_update(), pk=pk)
+            if event.status == EventStatus.REMOVED:
+                messages.error(request, 'This event has already been removed.')
+            else:
+                remove_event(event, request.user, reason)
+                messages.success(request, 'Event removed. It no longer shows on Explore or park pages.')
+        return redirect(event.get_absolute_url())
 
 
 def edit_block_reason(event):
@@ -597,6 +620,9 @@ class EventDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         event = self.object
+        if event.status == EventStatus.REMOVED:
+            # US-7.5 (#48): the page is only a notice, so nothing about the event is loaded.
+            return context
         active_rsvps = event.rsvps.filter(status=RSVPStatus.ACTIVE).select_related('user__profile')
         discussion_messages = Message.objects.filter(event=event).select_related('author__profile')
         latest_discussion_message_id = discussion_messages.order_by('-pk').values_list('pk', flat=True).first() or 0
@@ -632,6 +658,8 @@ class EventDetailView(DetailView):
             can_manage=can_manage,
             can_cancel_event=can_manage and event_block_reason is None,
             can_edit_event=can_manage and event_block_reason is None,
+            can_remove_event=is_administrator(self.request.user),
+            removal_reason_max_length=REMOVAL_REASON_MAX_LENGTH,
             can_announce=self.request.user.is_authenticated and self.request.user == event.organizer,
             active_rsvps=active_rsvps,
             announcement_messages=announcement_messages,
@@ -735,7 +763,11 @@ def get_editable_message(request, event_pk, message_pk):
 
 def get_deletable_message(request, event_pk, message_pk):
     event = get_object_or_404(Event, pk=event_pk)
-    message = get_object_or_404(Message.objects.select_related('author__profile'), pk=message_pk, event=event)
+    message = get_object_or_404(
+        Message.objects.select_for_update(of=('self',)).select_related('author__profile'),
+        pk=message_pk,
+        event=event,
+    )
     can_delete_as_author = message.author_id == request.user.pk and event.discussion_open
     if not event.can_be_managed_by(request.user) and not can_delete_as_author:
         raise PermissionDenied
@@ -795,9 +827,12 @@ def delete_event_message(request, pk, message_pk):
     if not request.user.is_authenticated:
         return redirect_to_login(event_url)
 
-    message = get_deletable_message(request, pk, message_pk)
-    message_id = message.pk
-    message.delete()
+    with transaction.atomic():
+        message = get_deletable_message(request, pk, message_pk)
+        message_id = message.pk
+        if request.user.is_staff and message.author_id != request.user.pk:
+            log_admin_action(request.user, message, 'delete', 'Deleted event discussion message')
+        message.delete()
     if wants_json:
         return JsonResponse({'deleted': True, 'id': message_id})
     return redirect(event_url)

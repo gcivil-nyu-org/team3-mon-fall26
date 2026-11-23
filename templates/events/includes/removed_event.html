@@ -1,0 +1,9 @@
+{# US-7.5 (#48): a removed event's page shows nothing from the event, only that a moderator took it down. #}
+<article class="event-card event-removed">
+  <span class="event-badge event-badge--status">Removed</span>
+  <h1 class="event-removed-title">This event was removed by a moderator</h1>
+  <p class="event-removed-text">Its details, players and discussion are no longer shown.</p>
+  {% if is_administrator %}
+    <p class="event-removed-staff"><a href="{% url 'admin:events_event_change' event.pk %}">Open it in the admin</a> to see what was removed or restore it.</p>
+  {% endif %}
+</article>

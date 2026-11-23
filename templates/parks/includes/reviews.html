@@ -15,7 +15,7 @@
         </div>
       </form>
     {% else %}
-      {% include "parks/includes/review.html" with review=own_review only %}
+      {% include "parks/includes/review.html" with review=own_review is_administrator=is_administrator csrf_token=csrf_token only %}
       <div class="park-review-actions">
         <a class="btn btn--ghost" href="{{ park_url }}?edit_review=1#reviews">Edit</a>
         <form method="post" action="{% url 'park_review_delete' pk=own_review.pk %}" onsubmit="return confirm('Delete your review? You can write a new one afterwards.');">
@@ -43,7 +43,7 @@
 <div class="park-review-community">
   <h3>Community reviews</h3>
   {% for review in reviews_page %}
-    {% include "parks/includes/review.html" with review=review only %}
+    {% include "parks/includes/review.html" with review=review is_administrator=is_administrator csrf_token=csrf_token only %}
   {% empty %}
     <p class="park-detail-empty">No reviews yet</p>
   {% endfor %}

@@ -1,4 +1,5 @@
-<li class="event-discussion-message{% if is_announcement %} event-discussion-message--announcement{% endif %}" data-message-id="{{ message.pk }}">
+{% load reporting %}
+<li id="event-message-{{ message.pk }}" class="event-discussion-message{% if is_announcement %} event-discussion-message--announcement{% endif %}" data-message-id="{{ message.pk }}">
   <header class="event-discussion-message-header">
     <a href="{% url 'public_profile' username=message.author.username %}">@{{ message.author.profile.display_username|default:message.author.username }}</a>
     {% if is_announcement %}<span class="event-discussion-announcement-label">Organizer announcement</span>{% endif %}
@@ -20,6 +21,7 @@
     {% endif %}
   </header>
   <p data-message-body>{{ message.body|linebreaksbr }}</p>
+  {% report_control 'message' message.pk message.author_id %}
   {% if can_manage_own_messages and user.pk == message.author_id %}
     <form class="event-discussion-edit-form" method="post" action="{% url 'event_message_edit' event.pk message.pk %}" data-message-edit-form hidden>
       {% csrf_token %}

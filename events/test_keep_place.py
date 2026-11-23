@@ -1,4 +1,4 @@
-"""#122: actions return to the section they came from, with their message there."""
+"""#122: actions return to the section they came from, with any remaining messages there."""
 
 from django.urls import reverse
 

@@ -9,9 +9,13 @@
   <link rel="stylesheet" href="{% static 'css/landing.css' %}">
 {% endblock %}
 
+{# The nav floats over the page, so the banner (#50) goes inside it instead of above it. #}
+{% block site_banner %}{% endblock %}
+
 {% block header %}
 {% url 'login' as login_url %}{% url 'register' as register_url %}{% url 'logout' as logout_url %}{% url 'event_create' as event_create_url %}{% url 'event_list' as event_list_url %}
 <header class="lp-nav" data-nav>
+  {% include "includes/site_banner.html" %}
   <div class="lp-container lp-nav-inner">
     <a class="brand" href="/">{% include "includes/logo.html" %}</a>
     <nav class="lp-nav-links" aria-label="Sections">

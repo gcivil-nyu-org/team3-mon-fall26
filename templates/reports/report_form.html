@@ -1,0 +1,6 @@
+<form class="report-form" method="post" action="{% url 'submit_report' kind target_id %}">
+  {% csrf_token %}
+  {% include "includes/form_field.html" with field=form.reason %}
+  {% include "includes/form_field.html" with field=form.details %}
+  <button class="btn btn--primary" type="submit">Submit report</button>
+</form>

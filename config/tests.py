@@ -47,6 +47,8 @@ class DatabaseProbeTests(TestCase):
 
 
 class LandingPageTests(SimpleTestCase):
+    # Deployment check mode has no real database. Outside it, every page looks up the site banner (#50).
+    @override_settings(DEPLOYMENT_CHECK_ONLY=True)
     def test_frontend_landing_page_renders_without_database_access(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)

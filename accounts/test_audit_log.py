@@ -52,6 +52,8 @@ class AdminSiteActionsTests(AuditLogTestCase):
         data.update({key: 'on' for key, value in data.items() if value is True})
         data = {key: value for key, value in data.items() if value is not False}
         data['name'] = 'Audit Park North'
+        # The park form carries a facility inline (#45); submit it empty.
+        data.update({'facilities-TOTAL_FORMS': '0', 'facilities-INITIAL_FORMS': '0'})
         self.assertEqual(self.client.post(url, data).status_code, 302)
 
         entry = self.entries(action_flag=CHANGE).get()

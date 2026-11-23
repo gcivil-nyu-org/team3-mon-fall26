@@ -13,6 +13,8 @@
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
+  {# US-7.7 (#50): above every page's header, including pages that replace it. #}
+  {% block site_banner %}{% include "includes/site_banner.html" %}{% endblock %}
   {% block header %}
     {% url 'login' as login_url %}{% url 'register' as register_url %}{% url 'logout' as logout_url %}{% url 'event_create' as event_create_url %}{% url 'event_list' as event_list_url %}
     <header class="site-header">

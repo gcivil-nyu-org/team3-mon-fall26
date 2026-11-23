@@ -71,6 +71,24 @@ a {
   height: 40px;
 }
 
+/* US-7.7 (#50): site-wide banner announcement, above the header */
+
+.site-banner {
+  padding: 10px 24px;
+  color: #fff;
+  text-align: center;
+  background: var(--green-900);
+}
+
+.site-banner-message {
+  max-width: 72ch;
+  margin: 0 auto;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 /* Header (non-auth pages) */
 
 .site-header {
@@ -332,6 +350,15 @@ a {
 
 .btn--ghost:hover {
   background: var(--green-50);
+}
+
+.btn--danger {
+  color: #fff;
+  background: var(--danger);
+}
+
+.btn--danger:hover {
+  background: #912018;
 }
 
 .btn--block {
@@ -963,6 +990,28 @@ a:focus-visible {
   color: var(--muted);
 }
 
+.report-control {
+  margin-block: 12px;
+}
+
+.report-control summary {
+  width: fit-content;
+  color: var(--green-900);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.report-form {
+  display: grid;
+  gap: 12px;
+  max-width: 28rem;
+  margin-block: 12px;
+}
+
+.report-form .btn {
+  justify-self: start;
+}
+
 .event-form {
   display: grid;
   gap: 20px;
@@ -1397,6 +1446,60 @@ a:focus-visible {
   padding-top: 20px;
   margin-top: 20px;
   border-top: 1px solid var(--border);
+}
+
+/* US-7.5 (#48): staff-only removal, and the page a removed event leaves behind. */
+
+.event-moderate {
+  padding: 16px;
+  margin-top: 20px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius);
+}
+
+.event-moderate h2 {
+  margin: 0 0 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--danger);
+}
+
+.event-moderate-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.event-moderate-form .input-wrap {
+  flex: 1 1 240px;
+}
+
+.event-moderate-form input {
+  height: 40px;
+}
+
+.event-removed {
+  text-align: center;
+}
+
+.event-removed-title {
+  margin: 12px 0 8px;
+  font-size: 1.5rem;
+  color: var(--green-900);
+}
+
+.event-removed-text,
+.event-removed-staff {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.event-removed-staff {
+  margin-top: 12px;
+  font-size: 0.875rem;
 }
 
 /* Event discovery feed (#25) */

@@ -647,7 +647,13 @@ class EventRSVPTests(TestCase):
                 'This event has been cancelled.',
                 'This event has been cancelled.',
             ),
-            (EventStatus.REMOVED, self.event.date, 'This event has been removed.', 'This event has been removed.'),
+            # US-7.5 (#48): a removed event's page is only the moderator notice.
+            (
+                EventStatus.REMOVED,
+                self.event.date,
+                'This event was removed by a moderator',
+                'This event has been removed.',
+            ),
             (
                 EventStatus.SCHEDULED,
                 timezone.localdate() - datetime.timedelta(days=1),
@@ -665,9 +671,12 @@ class EventRSVPTests(TestCase):
 
                 page = self.client.get(self.detail_url)
                 self.assertContains(page, note)
-                self.assertContains(
-                    page, '<button class="btn btn--primary" type="button" disabled>Join event</button>', html=True
-                )
+                if status == EventStatus.REMOVED:
+                    self.assertNotContains(page, 'Join event')
+                else:
+                    self.assertContains(
+                        page, '<button class="btn btn--primary" type="button" disabled>Join event</button>', html=True
+                    )
                 response = self.client.post(self.rsvp_url, follow=True)
 
                 self.assertContains(response, reason)

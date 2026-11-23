@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load reporting %}
 
 {% block title %}@{{ display_name }} · NYC Active{% endblock %}
 {% block body_class %}page--plain{% endblock %}
@@ -19,6 +20,7 @@
       <p class="profile-settings-subtitle">Member since {{ member.date_joined|date:"F Y" }}</p>
     </div>
   </header>
+  {% report_control 'account' member.pk member.pk %}
 
   <section class="profile-settings-section">
     <div class="profile-settings-intro">
