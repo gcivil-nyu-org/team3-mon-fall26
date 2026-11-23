@@ -1,13 +1,20 @@
 """US-7.6 (#49): administrators inspect accounts and suspend or restore their access."""
 
+import html
+import re
+
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.admin.models import CHANGE, LogEntry
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.sessions.models import Session
 from django.test import Client
 from django.urls import reverse
+from django.utils.html import escape
+from django.utils.http import urlencode
 
 from events.models import RSVP
 from parks.models import Review
+from reports.models import Report
 
 from .test_admin_access import PASSWORD, AdminAccessTestCase
 
@@ -58,6 +65,61 @@ class InspectAccountTests(AccountAccessTestCase):
                 self.assertContains(response, shown)
                 if hidden:
                     self.assertNotContains(response, f'>{hidden}<')
+
+    def report(self, reporter, target, **fields):
+        return Report.objects.create(
+            reporter=reporter,
+            content_type=ContentType.objects.get_for_model(target),
+            object_id=target.pk,
+            target_snapshot=str(target),
+            reason=Report.Reason.HARASSMENT,
+            **fields,
+        )
+
+    def report_links(self, user):
+        """The two report links the account page should show for `user`."""
+        queue = reverse('admin:reports_report_changelist')
+        account_type = ContentType.objects.get_for_model(user)
+        filed = {'reporter__id__exact': user.pk, 'status': 'all'}
+        about = {'content_type__id__exact': account_type.pk, 'object_id__exact': user.pk, 'status': 'all'}
+        return f'{queue}?{urlencode(filed)}', f'{queue}?{urlencode(about)}'
+
+    def rendered_link(self, user, label):
+        """The href of the account page's `label` link, as an administrator's browser would follow it."""
+        page = self.client.get(self.user_change_url(user)).content.decode()
+        return html.unescape(re.search(rf'<a href="([^"]+)">{label} \(\d+\)</a>', page).group(1))
+
+    def test_account_page_links_to_reports_they_filed_and_reports_about_them(self):
+        self.report(self.participant, self.organizer)
+        self.report(self.organizer, self.participant, status=Report.Status.RESOLVED, outcome='no_action')
+        self.report(self.participant, self.event)
+        self.client.force_login(self.admin)
+
+        response = self.client.get(self.user_change_url(self.participant))
+
+        filed_url, about_url = self.report_links(self.participant)
+        self.assertContains(response, f'<a href="{escape(filed_url)}">Reports filed (2)</a>', html=True)
+        self.assertContains(response, f'<a href="{escape(about_url)}">Reports about this account (1)</a>', html=True)
+
+    def test_report_links_open_just_that_accounts_reports_including_resolved_ones(self):
+        about_organizer = self.report(self.participant, self.organizer)
+        about_participant = self.report(
+            self.organizer, self.participant, status=Report.Status.RESOLVED, outcome='no_action'
+        )
+        # A report on the organizer's event counts as filed by the participant, not as one about the organizer.
+        about_event = self.report(self.participant, self.event)
+        self.client.force_login(self.admin)
+
+        for user, label, expected in (
+            (self.participant, 'Reports filed', {about_organizer, about_event}),
+            (self.participant, 'Reports about this account', {about_participant}),
+            (self.organizer, 'Reports filed', {about_participant}),
+            (self.organizer, 'Reports about this account', {about_organizer}),
+        ):
+            with self.subTest(user=user.username, link=label):
+                response = self.client.get(self.rendered_link(user, label))
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(set(response.context['cl'].result_list), expected)
 
     def test_account_list_shows_join_date_last_login_and_active(self):
         self.client.force_login(self.admin)

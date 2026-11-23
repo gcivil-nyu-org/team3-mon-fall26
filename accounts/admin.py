@@ -2,15 +2,18 @@ from django.contrib import admin, messages
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.template.defaultfilters import linebreaksbr, pluralize
 from django.urls import reverse
 from django.utils.html import format_html_join
+from django.utils.http import urlencode
 from django.utils.safestring import mark_safe
 
 from events.models import RSVP, Event
 from parks.models import Review
+from reports.models import Report
 
 from .audit import log_admin_action
 from .suspension import end_sessions
@@ -28,7 +31,9 @@ class UserAdmin(BaseUserAdmin):
     including staff status, groups, permissions, passwords and other staff accounts, is
     superuser-only, so an administrator can't grant themselves or anyone else more access.
 
-    US-7.6 (#49): suspending an account means clearing Active, from the form or the Suspend action.
+    US-7.6 (#49): the account page links to the person's events, RSVPs, reviews, the reports they
+    filed and the reports about their account. Suspending an account means clearing Active, from the
+    form or the Suspend action.
     Django then refuses the account at login and drops its existing sessions on their next request.
     Accounts are never deleted, because deleting one would also delete its events and other people's
     RSVPs to them.
@@ -86,20 +91,40 @@ class UserAdmin(BaseUserAdmin):
     @admin.display(description='Links')
     def activity(self, user):
         """Links to what the account has done on the site, each filtered to this account."""
+        account_type = ContentType.objects.get_for_model(User)
+        # The report queue opens on open reports (#47), so these links ask for every status.
+        about_account = {'content_type__id__exact': account_type.pk, 'object_id__exact': user.pk, 'status': 'all'}
         links = (
             (
                 'Hosted events',
                 'admin:events_event_changelist',
-                'organizer__id__exact',
+                {'organizer__id__exact': user.pk},
                 Event.objects.filter(organizer=user),
             ),
-            ('RSVPs', 'admin:events_rsvp_changelist', 'user__id__exact', RSVP.objects.filter(user=user)),
-            ('Park reviews', 'admin:parks_review_changelist', 'user__id__exact', Review.objects.filter(user=user)),
+            ('RSVPs', 'admin:events_rsvp_changelist', {'user__id__exact': user.pk}, RSVP.objects.filter(user=user)),
+            (
+                'Park reviews',
+                'admin:parks_review_changelist',
+                {'user__id__exact': user.pk},
+                Review.objects.filter(user=user),
+            ),
+            (
+                'Reports filed',
+                'admin:reports_report_changelist',
+                {'reporter__id__exact': user.pk, 'status': 'all'},
+                Report.objects.filter(reporter=user),
+            ),
+            (
+                'Reports about this account',
+                'admin:reports_report_changelist',
+                about_account,
+                Report.objects.filter(content_type=account_type, object_id=user.pk),
+            ),
         )
         return format_html_join(
             mark_safe('<br>'),
-            '<a href="{}?{}={}">{} ({})</a>',
-            ((reverse(url), lookup, user.pk, label, rows.count()) for label, url, lookup, rows in links),
+            '<a href="{}?{}">{} ({})</a>',
+            ((reverse(url), urlencode(query), label, rows.count()) for label, url, query, rows in links),
         )
 
     @admin.action(description='Suspend selected accounts', permissions=['change'])
